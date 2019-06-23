@@ -870,6 +870,12 @@ bool NodeMetaInfoPrivate::isPropertyList(const PropertyName &propertyName) const
     const CppComponentValue *qmlObjectValue = getNearestCppComponentValue();
     if (!qmlObjectValue)
         return false;
+
+    if (!qmlObjectValue->hasProperty(QString::fromUtf8(propertyName))) {
+        const TypeName typeName = propertyType(propertyName);
+        return (typeName == "Item"  || typeName == "QtObject");
+    }
+
     return qmlObjectValue->isListProperty(QString::fromUtf8(propertyName));
 }
 
@@ -1475,6 +1481,11 @@ bool NodeMetaInfo::defaultPropertyIsComponent() const
 TypeName NodeMetaInfo::typeName() const
 {
     return m_privateData->qualfiedTypeName();
+}
+
+TypeName NodeMetaInfo::simplifiedTypeName() const
+{
+    return typeName().split('.').constLast();
 }
 
 int NodeMetaInfo::majorVersion() const

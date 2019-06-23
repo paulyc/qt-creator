@@ -83,7 +83,7 @@ class PythonProject : public Project
 {
     Q_OBJECT
 public:
-    explicit PythonProject(const Utils::FileName &filename);
+    explicit PythonProject(const Utils::FilePath &filename);
 
     bool addFiles(const QStringList &filePaths);
     bool removeFiles(const QStringList &filePaths);
@@ -178,7 +178,7 @@ private:
                 tc.insertText('\n' + match.captured(1));
                 tc.insertText(match.captured(2), linkFormat(frm, match.captured(2)));
 
-                const auto fileName = FileName::fromString(match.captured(3));
+                const auto fileName = FilePath::fromString(match.captured(3));
                 const int lineNumber = match.capturedRef(4).toInt();
                 Task task(Task::Warning,
                                            QString(), fileName, lineNumber, id);
@@ -246,7 +246,6 @@ public:
 
 private:
     void doAdditionalSetup(const RunConfigurationCreationInfo &) final { updateTargetInformation(); }
-    Runnable runnable() const final;
 
     bool supportsDebugger() const { return true; }
     QString mainScript() const { return aspect<MainScriptAspect>()->value(); }
@@ -275,10 +274,17 @@ PythonRunConfiguration::PythonRunConfiguration(Target *target, Core::Id id)
     scriptAspect->setDisplayStyle(BaseStringAspect::LabelDisplay);
 
     addAspect<LocalEnvironmentAspect>(target);
-    addAspect<ArgumentsAspect>();
+
+    auto argumentsAspect = addAspect<ArgumentsAspect>();
+
     addAspect<TerminalAspect>();
 
     setOutputFormatter<PythonOutputFormatter>();
+    setCommandLineGetter([this, interpreterAspect, argumentsAspect] {
+        CommandLine cmd{FilePath::fromString(interpreterAspect->value()), {mainScript()}};
+        cmd.addArgs(argumentsAspect->arguments(macroExpander()), CommandLine::Raw);
+        return cmd;
+    });
 
     connect(target, &Target::applicationTargetsChanged,
             this, &PythonRunConfiguration::updateTargetInformation);
@@ -294,17 +300,6 @@ void PythonRunConfiguration::updateTargetInformation()
     aspect<MainScriptAspect>()->setValue(script);
 }
 
-Runnable PythonRunConfiguration::runnable() const
-{
-    Runnable r;
-    QtcProcess::addArg(&r.commandLineArguments, mainScript());
-    QtcProcess::addArgs(&r.commandLineArguments,
-                        aspect<ArgumentsAspect>()->arguments(macroExpander()));
-    r.executable = aspect<InterpreterAspect>()->value();
-    r.environment = aspect<EnvironmentAspect>()->environment();
-    return r;
-}
-
 class PythonRunConfigurationFactory : public RunConfigurationFactory
 {
 public:
@@ -315,7 +310,7 @@ public:
     }
 };
 
-PythonProject::PythonProject(const FileName &fileName) :
+PythonProject::PythonProject(const FilePath &fileName) :
     Project(Constants::C_PY_MIMETYPE, fileName, [this]() { refresh(); })
 {
     setId(PythonProjectId);
@@ -323,7 +318,7 @@ PythonProject::PythonProject(const FileName &fileName) :
     setDisplayName(fileName.toFileInfo().completeBaseName());
 }
 
-static QStringList readLines(const Utils::FileName &projectFile)
+static QStringList readLines(const Utils::FilePath &projectFile)
 {
     const QString projectFileName = projectFile.fileName();
     QSet<QString> visited = { projectFileName };
@@ -347,7 +342,7 @@ static QStringList readLines(const Utils::FileName &projectFile)
     return lines;
 }
 
-static QStringList readLinesJson(const Utils::FileName &projectFile,
+static QStringList readLinesJson(const Utils::FilePath &projectFile,
                                  QString *errorMessage)
 {
     const QString projectFileName = projectFile.fileName();
@@ -512,7 +507,7 @@ bool PythonProject::renameFile(const QString &filePath, const QString &newFilePa
 void PythonProject::parseProject()
 {
     m_rawListEntries.clear();
-    const Utils::FileName filePath = projectFilePath();
+    const Utils::FilePath filePath = projectFilePath();
     // The PySide project file is JSON based
     if (filePath.endsWith(".pyproject")) {
         QString errorMessage;
@@ -534,7 +529,7 @@ void PythonProject::parseProject()
 class PythonFileNode : public FileNode
 {
 public:
-    PythonFileNode(const Utils::FileName &filePath, const QString &nodeDisplayName,
+    PythonFileNode(const Utils::FilePath &filePath, const QString &nodeDisplayName,
                    FileType fileType = FileType::Source)
         : FileNode(filePath, fileType)
         , m_displayName(nodeDisplayName)
@@ -551,20 +546,20 @@ void PythonProject::refresh(Target *target)
     parseProject();
 
     const QDir baseDir(projectDirectory().toString());
-    BuildTargetInfoList appTargets;
+    QList<BuildTargetInfo> appTargets;
     auto newRoot = std::make_unique<PythonProjectNode>(this);
     for (const QString &f : qAsConst(m_files)) {
         const QString displayName = baseDir.relativeFilePath(f);
         const FileType fileType = f.endsWith(".pyproject") || f.endsWith(".pyqtc") ? FileType::Project
                                                                                    : FileType::Source;
-        newRoot->addNestedNode(std::make_unique<PythonFileNode>(FileName::fromString(f),
+        newRoot->addNestedNode(std::make_unique<PythonFileNode>(FilePath::fromString(f),
                                                                 displayName, fileType));
         if (fileType == FileType::Source) {
             BuildTargetInfo bti;
             bti.buildKey = f;
-            bti.targetFilePath = FileName::fromString(f);
+            bti.targetFilePath = FilePath::fromString(f);
             bti.projectFilePath = projectFilePath();
-            appTargets.list.append(bti);
+            appTargets.append(bti);
         }
     }
     setRootProjectNode(std::move(newRoot));
@@ -618,7 +613,7 @@ QStringList PythonProject::processEntries(const QStringList &paths,
 
         expandEnvironmentVariables(env, trimmedPath);
 
-        trimmedPath = FileName::fromUserInput(trimmedPath).toString();
+        trimmedPath = FilePath::fromUserInput(trimmedPath).toString();
 
         fileInfo.setFile(projectDir, trimmedPath);
         if (fileInfo.exists()) {
@@ -661,11 +656,11 @@ QHash<QString, QStringList> sortFilesIntoPaths(const QString &base, const QSet<Q
 
     for (const QString &absoluteFileName : files) {
         const QFileInfo fileInfo(absoluteFileName);
-        const FileName absoluteFilePath = FileName::fromString(fileInfo.path());
+        const FilePath absoluteFilePath = FilePath::fromString(fileInfo.path());
         QString relativeFilePath;
 
         if (absoluteFilePath.isChildOf(baseDir)) {
-            relativeFilePath = absoluteFilePath.relativeChildPath(FileName::fromString(base)).toString();
+            relativeFilePath = absoluteFilePath.relativeChildPath(FilePath::fromString(base)).toString();
         } else {
             // 'file' is not part of the project.
             relativeFilePath = baseDir.relativeFilePath(absoluteFilePath.toString());

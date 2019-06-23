@@ -84,7 +84,7 @@ public:
     QStringList arguments() const { return m_arguments; }
     void setArguments(const QStringList &arguments) { m_arguments = arguments; }
 
-    static QString toolVersion(const QString &binary, const QStringList &arguments);
+    static QString toolVersion(const CommandLine &cmd);
 
 private:
     // Extension point for concatenating existing tooltips.
@@ -108,7 +108,8 @@ bool BinaryVersionToolTipEventFilter::eventFilter(QObject *o, QEvent *e)
 
     const QString binary = le->text();
     if (!binary.isEmpty()) {
-        const QString version = BinaryVersionToolTipEventFilter::toolVersion(QDir::cleanPath(binary), m_arguments);
+        const QString version = BinaryVersionToolTipEventFilter::toolVersion(
+                    CommandLine(FilePath::fromString(QDir::cleanPath(binary)), m_arguments));
         if (!version.isEmpty()) {
             // Concatenate tooltips.
             QString tooltip = "<html><head/><body>";
@@ -127,13 +128,13 @@ bool BinaryVersionToolTipEventFilter::eventFilter(QObject *o, QEvent *e)
     return false;
 }
 
-QString BinaryVersionToolTipEventFilter::toolVersion(const QString &binary, const QStringList &arguments)
+QString BinaryVersionToolTipEventFilter::toolVersion(const CommandLine &cmd)
 {
-    if (binary.isEmpty())
+    if (cmd.executable().isEmpty())
         return QString();
     SynchronousProcess proc;
     proc.setTimeoutS(1);
-    SynchronousProcessResponse response = proc.runBlocking(binary, arguments);
+    SynchronousProcessResponse response = proc.runBlocking(cmd);
     if (response.result != SynchronousProcessResponse::Finished)
         return QString();
     return response.allOutput();
@@ -193,14 +194,14 @@ QString PathChooserPrivate::expandedPath(const QString &input) const
     if (m_macroExpander)
         expandedInput = m_macroExpander->expand(expandedInput);
 
-    const QString path = FileName::fromUserInput(expandedInput).toString();
+    const QString path = FilePath::fromUserInput(expandedInput).toString();
     if (path.isEmpty())
         return path;
 
     switch (m_acceptingKind) {
     case PathChooser::Command:
     case PathChooser::ExistingCommand: {
-        const FileName expanded = m_environment.searchInPath(path, {FileName::fromString(m_baseDirectory)});
+        const FilePath expanded = m_environment.searchInPath(path, {FilePath::fromString(m_baseDirectory)});
         return expanded.isEmpty() ? path : expanded.toString();
     }
     case PathChooser::Any:
@@ -293,12 +294,12 @@ void PathChooser::setBaseDirectory(const QString &directory)
     triggerChanged();
 }
 
-FileName PathChooser::baseFileName() const
+FilePath PathChooser::baseFileName() const
 {
-    return FileName::fromString(d->m_baseDirectory);
+    return FilePath::fromString(d->m_baseDirectory);
 }
 
-void PathChooser::setBaseFileName(const FileName &base)
+void PathChooser::setBaseFileName(const FilePath &base)
 {
     setBaseDirectory(base.toString());
 }
@@ -323,14 +324,14 @@ QString PathChooser::path() const
     return fileName().toString();
 }
 
-FileName PathChooser::rawFileName() const
+FilePath PathChooser::rawFileName() const
 {
-    return FileName::fromString(QDir::fromNativeSeparators(d->m_lineEdit->text()));
+    return FilePath::fromString(QDir::fromNativeSeparators(d->m_lineEdit->text()));
 }
 
-FileName PathChooser::fileName() const
+FilePath PathChooser::fileName() const
 {
-    return FileName::fromUserInput(d->expandedPath(rawFileName().toString()));
+    return FilePath::fromUserInput(d->expandedPath(rawFileName().toString()));
 }
 
 // FIXME: try to remove again
@@ -352,7 +353,7 @@ void PathChooser::setPath(const QString &path)
     d->m_lineEdit->setTextKeepingActiveCursor(QDir::toNativeSeparators(path));
 }
 
-void PathChooser::setFileName(const FileName &fn)
+void PathChooser::setFileName(const FilePath &fn)
 {
     d->m_lineEdit->setTextKeepingActiveCursor(fn.toUserOutput());
 }
@@ -677,7 +678,7 @@ FancyLineEdit *PathChooser::lineEdit() const
 
 QString PathChooser::toolVersion(const QString &binary, const QStringList &arguments)
 {
-    return BinaryVersionToolTipEventFilter::toolVersion(binary, arguments);
+    return BinaryVersionToolTipEventFilter::toolVersion({FilePath::fromString(binary), arguments});
 }
 
 void PathChooser::installLineEditVersionToolTip(QLineEdit *le, const QStringList &arguments)

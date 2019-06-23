@@ -33,6 +33,7 @@
 #include <utils/fileutils.h>
 
 QT_BEGIN_NAMESPACE
+class QCheckBox;
 class QComboBox;
 class QFormLayout;
 class QLabel;
@@ -70,6 +71,7 @@ public:
     StartupMode startupMode() const;
     QString initCommands() const;
     QString resetCommands() const;
+    bool useExtendedRemote() const;
 
     virtual bool operator==(const GdbServerProvider &) const;
 
@@ -82,8 +84,7 @@ public:
 
     virtual QVariantMap toMap() const;
 
-    virtual QString executable() const;
-    virtual QStringList arguments() const;
+    virtual Utils::CommandLine command() const;
 
     virtual bool isValid() const;
     virtual bool canStartupMode(StartupMode) const;
@@ -98,6 +99,7 @@ protected:
     void setStartupMode(StartupMode);
     void setInitCommands(const QString &);
     void setResetCommands(const QString &);
+    void setUseExtendedRemote(bool);
 
     void providerUpdated();
 
@@ -110,6 +112,7 @@ private:
     QString m_initCommands;
     QString m_resetCommands;
     QSet<BareMetalDevice *> m_devices;
+    bool m_useExtendedRemote = false;
 
     friend class GdbServerProviderConfigWidget;
 };

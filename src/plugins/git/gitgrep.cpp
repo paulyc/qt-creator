@@ -196,7 +196,7 @@ public:
         connect(&watcher, &QFutureWatcher<FileSearchResultList>::canceled,
                 command.data(), &VcsCommand::cancel);
         connect(command.data(), &VcsCommand::stdOutText, this, &GitGrepRunner::read);
-        SynchronousProcessResponse resp = command->runCommand(client->vcsBinary(), arguments, 0);
+        SynchronousProcessResponse resp = command->runCommand({client->vcsBinary(), arguments}, 0);
         switch (resp.result) {
         case SynchronousProcessResponse::TerminatedAbnormally:
         case SynchronousProcessResponse::StartFailed:
@@ -291,7 +291,7 @@ QVariant GitGrep::parameters() const
     params.ref = m_treeLineEdit->text();
     if (m_recurseSubmodules)
         params.recurseSubmodules = m_recurseSubmodules->isChecked();
-    return qVariantFromValue(params);
+    return QVariant::fromValue(params);
 }
 
 void GitGrep::readSettings(QSettings *settings)

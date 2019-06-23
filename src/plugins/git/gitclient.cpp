@@ -74,6 +74,7 @@
 #include <QAction>
 #include <QCoreApplication>
 #include <QDir>
+#include <QFileDialog>
 #include <QFileInfo>
 #include <QHash>
 #include <QMenu>
@@ -780,16 +781,15 @@ QString GitClient::findRepositoryForDirectory(const QString &directory) const
         return QString();
     // QFileInfo is outside loop, because it is faster this way
     QFileInfo fileInfo;
-    FileName parent;
-    for (FileName dir = FileName::fromString(directory); !dir.isEmpty(); dir = dir.parentDir()) {
-        FileName gitName = FileName(dir).appendPath(GIT_DIRECTORY);
+    FilePath parent;
+    for (FilePath dir = FilePath::fromString(directory); !dir.isEmpty(); dir = dir.parentDir()) {
+        const FilePath gitName = dir.pathAppended(GIT_DIRECTORY);
         if (!gitName.exists())
             continue; // parent might exist
         fileInfo.setFile(gitName.toString());
         if (fileInfo.isFile())
             return dir.toString();
-        gitName.appendPath("config");
-        if (gitName.exists())
+        if (gitName.pathAppended("config").exists())
             return dir.toString();
     }
     return QString();
@@ -1085,6 +1085,49 @@ void GitClient::show(const QString &source, const QString &id, const QString &na
                                (IDocument *doc) -> DiffEditorController* {
                                    return new ShowController(doc, workingDirectory, id);
                                });
+}
+
+void GitClient::archive(const QString &workingDirectory, const QString &commit)
+{
+    QString repoDirectory = VcsManager::findTopLevelForDirectory(workingDirectory);
+    if (repoDirectory.isEmpty())
+        repoDirectory = workingDirectory;
+    QString repoName = QFileInfo(repoDirectory).fileName();
+
+    QHash<QString, QString> filters {
+        { tr("Tarball (*.tar.gz)"), ".tar.gz" },
+        { tr("Zip archive (*.zip)"), ".zip" }
+    };
+    QString selectedFilter;
+    if (HostOsInfo::isWindowsHost())
+        selectedFilter = filters.key(".zip");
+    else
+        selectedFilter = filters.key(".tar.gz");
+
+    QString archiveName = QFileDialog::getSaveFileName(
+                ICore::dialogParent(),
+                tr("Generate %1 archive").arg(repoName),
+                repoDirectory + QString("/%1-%2").arg(repoName).arg(commit.left(8)),
+                filters.keys().join(";;"),
+                &selectedFilter);
+    if (archiveName.isEmpty())
+        return;
+    QString extension = filters.value(selectedFilter);
+    QFileInfo archive(archiveName);
+    if (archive.completeSuffix() != extension) {
+        archive = QFileInfo(archive.absoluteDir().absoluteFilePath(archive.baseName() + extension));
+    }
+
+    if (archive.exists()) {
+        if (QMessageBox::warning(ICore::dialogParent(), tr("Overwrite?"),
+            tr("An item named \"%1\" already exists at this location. "
+               "Do you want to overwrite it?").arg(QDir::toNativeSeparators(archive.absoluteFilePath())),
+            QMessageBox::Yes | QMessageBox::No) == QMessageBox::No) {
+            return;
+        }
+    }
+
+    vcsExec(workingDirectory, {"archive", commit, "-o", archive.absoluteFilePath()}, nullptr, true);
 }
 
 VcsBaseEditorWidget *GitClient::annotate(
@@ -2341,7 +2384,7 @@ void GitClient::launchGitK(const QString &workingDirectory, const QString &fileN
     }
 
     Environment sysEnv = Environment::systemEnvironment();
-    const FileName exec = sysEnv.searchInPath("gitk");
+    const FilePath exec = sysEnv.searchInPath("gitk");
 
     if (!exec.isEmpty() && tryLauchingGitK(env, workingDirectory, fileName,
                                            exec.parentDir().toString())) {
@@ -2378,7 +2421,7 @@ bool GitClient::tryLauchingGitK(const QProcessEnvironment &env,
         arguments.append(QtcProcess::splitArgs(gitkOpts, HostOsInfo::hostOs()));
     if (!fileName.isEmpty())
         arguments << "--" << fileName;
-    VcsOutputWindow::appendCommand(workingDirectory, FileName::fromString(binary), arguments);
+    VcsOutputWindow::appendCommand(workingDirectory, {FilePath::fromString(binary), arguments});
     // This should always use QProcess::startDetached (as not to kill
     // the child), but that does not have an environment parameter.
     bool success = false;
@@ -2402,7 +2445,7 @@ bool GitClient::tryLauchingGitK(const QProcessEnvironment &env,
 
 bool GitClient::launchGitGui(const QString &workingDirectory) {
     bool success = true;
-    FileName gitBinary = vcsBinary();
+    FilePath gitBinary = vcsBinary();
     if (gitBinary.isEmpty()) {
         success = false;
     } else {
@@ -2416,11 +2459,11 @@ bool GitClient::launchGitGui(const QString &workingDirectory) {
     return success;
 }
 
-FileName GitClient::gitBinDirectory()
+FilePath GitClient::gitBinDirectory()
 {
     const QString git = vcsBinary().toString();
     if (git.isEmpty())
-        return FileName();
+        return FilePath();
 
     // Is 'git\cmd' in the path (folder containing .bats)?
     QString path = QFileInfo(git).absolutePath();
@@ -2440,15 +2483,15 @@ FileName GitClient::gitBinDirectory()
                 path = usrBinPath;
         }
     }
-    return FileName::fromString(path);
+    return FilePath::fromString(path);
 }
 
-FileName GitClient::vcsBinary() const
+FilePath GitClient::vcsBinary() const
 {
     bool ok;
-    Utils::FileName binary = static_cast<GitSettings &>(settings()).gitExecutable(&ok);
+    Utils::FilePath binary = static_cast<GitSettings &>(settings()).gitExecutable(&ok);
     if (!ok)
-        return Utils::FileName();
+        return Utils::FilePath();
     return binary;
 }
 
@@ -2613,7 +2656,7 @@ bool GitClient::getCommitData(const QString &workingDirectory,
         if (!QFile::exists(templateFilename))
             templateFilename = gitDirectory.absoluteFilePath("SQUASH_MSG");
         if (!QFile::exists(templateFilename)) {
-            FileName templateName = FileName::fromUserInput(
+            FilePath templateName = FilePath::fromUserInput(
                         readConfigValue(workingDirectory, "commit.template"));
             templateFilename = templateName.toString();
         }
@@ -3104,7 +3147,7 @@ VcsCommand *GitClient::vcsExecAbortable(const QString &workingDirectory,
                       | VcsCommand::ShowSuccessMessage);
     // For rebase, Git might request an editor (which means the process keeps running until the
     // user closes it), so run without timeout.
-    command->addJob(vcsBinary(), arguments, isRebase ? 0 : command->defaultTimeoutS());
+    command->addJob({vcsBinary(), arguments}, isRebase ? 0 : command->defaultTimeoutS());
     ConflictHandler::attachToCommand(command, abortCommand);
     if (isRebase)
         GitProgressParser::attachToCommand(command);
@@ -3260,7 +3303,7 @@ QString GitClient::readOneLine(const QString &workingDirectory, const QStringLis
 // determine version as '(major << 16) + (minor << 8) + patch' or 0.
 unsigned GitClient::gitVersion(QString *errorMessage) const
 {
-    const FileName newGitBinary = vcsBinary();
+    const FilePath newGitBinary = vcsBinary();
     if (m_gitVersionForBinary != newGitBinary && !newGitBinary.isEmpty()) {
         // Do not execute repeatedly if that fails (due to git
         // not being installed) until settings are changed.

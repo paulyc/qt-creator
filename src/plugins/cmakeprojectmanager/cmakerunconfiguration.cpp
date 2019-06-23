@@ -60,7 +60,7 @@ CMakeRunConfiguration::CMakeRunConfiguration(Target *target, Core::Id id)
 
     addAspect<ExecutableAspect>();
     addAspect<ArgumentsAspect>();
-    addAspect<WorkingDirectoryAspect>(envAspect);
+    addAspect<WorkingDirectoryAspect>();
     addAspect<TerminalAspect>();
 
     connect(target->project(), &Project::parsingFinished,
@@ -78,7 +78,7 @@ void CMakeRunConfiguration::doAdditionalSetup(const RunConfigurationCreationInfo
 
 bool CMakeRunConfiguration::isBuildTargetValid() const
 {
-    return Utils::anyOf(target()->applicationTargets().list, [this](const BuildTargetInfo &bti) {
+    return Utils::anyOf(target()->applicationTargets(), [this](const BuildTargetInfo &bti) {
         return bti.buildKey == buildKey();
     });
 }

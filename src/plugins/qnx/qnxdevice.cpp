@@ -62,7 +62,7 @@ class QnxPortsGatheringMethod : public PortsGatheringMethod
     {
         Q_UNUSED(protocol);
         Runnable runnable;
-        runnable.executable = "netstat";
+        runnable.executable = FileName::fromString("netstat");
         runnable.commandLineArguments = "-na";
         return runnable;
     }
@@ -82,15 +82,11 @@ class QnxPortsGatheringMethod : public PortsGatheringMethod
 
 QnxDevice::QnxDevice()
 {
+    setDisplayType(tr("QNX"));
     addDeviceAction({tr("Deploy Qt libraries..."), [](const IDevice::Ptr &device, QWidget *parent) {
         QnxDeployQtLibrariesDialog dialog(device, parent);
         dialog.exec();
     }});
-}
-
-QString QnxDevice::displayType() const
-{
-    return tr("QNX");
 }
 
 OsType QnxDevice::osType() const
@@ -114,7 +110,7 @@ void QnxDevice::updateVersionNumber() const
     QObject::connect(&versionNumberProcess, &DeviceProcess::error, &eventLoop, &QEventLoop::quit);
 
     Runnable r;
-    r.executable = QLatin1String("uname");
+    r.executable = FileName::fromString("uname");
     r.commandLineArguments = QLatin1String("-r");
     versionNumberProcess.start(r);
 
@@ -149,11 +145,6 @@ QVariantMap QnxDevice::toMap() const
     QVariantMap map(RemoteLinux::LinuxDevice::toMap());
     map.insert(QLatin1String(QnxVersionKey), m_versionNumber);
     return map;
-}
-
-IDevice::Ptr QnxDevice::clone() const
-{
-    return Ptr(new QnxDevice(*this));
 }
 
 PortsGatheringMethod::Ptr QnxDevice::portsGatheringMethod() const

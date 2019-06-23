@@ -93,8 +93,8 @@ void ProcessStep::setupProcessParameters(ProcessParameters *pp)
 
     pp->setMacroExpander(bc ? bc->macroExpander() : Utils::globalMacroExpander());
     pp->setEnvironment(bc ? bc->environment() : Utils::Environment::systemEnvironment());
-    pp->setWorkingDirectory(workingDirectory);
-    pp->setCommand(command);
+    pp->setWorkingDirectory(Utils::FilePath::fromString(workingDirectory));
+    pp->setCommand(Utils::FilePath::fromString(command));
     pp->setArguments(arguments);
     pp->resolveAll();
 }

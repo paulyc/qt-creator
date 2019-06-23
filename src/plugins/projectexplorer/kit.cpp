@@ -39,6 +39,7 @@
 #include <utils/optional.h>
 #include <utils/qtcassert.h>
 #include <utils/stringutils.h>
+#include <utils/utilsicons.h>
 
 #include <QApplication>
 #include <QFileInfo>
@@ -123,7 +124,7 @@ public:
     bool m_hasValidityInfo = false;
     bool m_mustNotify = false;
     QIcon m_cachedIcon;
-    FileName m_iconPath;
+    FilePath m_iconPath;
     Id m_deviceTypeForIcon;
 
     QHash<Id, QVariant> m_data;
@@ -162,7 +163,7 @@ Kit::Kit(const QVariantMap &data) :
     d->m_unexpandedDisplayName = data.value(QLatin1String(DISPLAYNAME_KEY),
                                             d->m_unexpandedDisplayName).toString();
     d->m_fileSystemFriendlyName = data.value(QLatin1String(FILESYSTEMFRIENDLYNAME_KEY)).toString();
-    d->m_iconPath = FileName::fromString(data.value(QLatin1String(ICON_KEY),
+    d->m_iconPath = FilePath::fromString(data.value(QLatin1String(ICON_KEY),
                                                     d->m_iconPath.toString()).toString());
     d->m_deviceTypeForIcon = Id::fromSetting(data.value(DEVICE_TYPE_FOR_ICON_KEY));
     const auto it = data.constFind(IRRELEVANT_ASPECTS_KEY);
@@ -255,9 +256,9 @@ bool Kit::hasWarning() const
     return d->m_hasWarning;
 }
 
-QList<Task> Kit::validate() const
+Tasks Kit::validate() const
 {
-    QList<Task> result;
+    Tasks result;
     for (KitAspect *aspect : KitManager::kitAspects())
         result.append(aspect->validate(this));
 
@@ -400,12 +401,26 @@ QIcon Kit::icon() const
     return d->m_cachedIcon;
 }
 
-FileName Kit::iconPath() const
+QIcon Kit::displayIcon() const
+{
+    QIcon result = icon();
+    if (hasWarning()) {
+         static const QIcon warningIcon(Utils::Icons::WARNING.icon());
+         result = warningIcon;
+    }
+    if (!isValid()) {
+        static const QIcon errorIcon(Utils::Icons::CRITICAL.icon());
+        result = errorIcon;
+    }
+    return result;
+}
+
+FilePath Kit::iconPath() const
 {
     return d->m_iconPath;
 }
 
-void Kit::setIconPath(const FileName &path)
+void Kit::setIconPath(const FilePath &path)
 {
     if (d->m_iconPath == path)
         return;
@@ -550,7 +565,7 @@ IOutputParser *Kit::createOutputParser() const
     return first;
 }
 
-QString Kit::toHtml(const QList<Task> &additional) const
+QString Kit::toHtml(const Tasks &additional) const
 {
     QString result;
     QTextStream str(&result);

@@ -40,6 +40,7 @@
 #include "qtest/qttestframework.h"
 #include "quick/quicktestframework.h"
 #include "gtest/gtestframework.h"
+#include "boost/boosttestframework.h"
 
 #include <coreplugin/icore.h>
 #include <coreplugin/icontext.h>
@@ -176,6 +177,7 @@ bool AutotestPlugin::initialize(const QStringList &arguments, QString *errorStri
     m_frameworkManager->registerTestFramework(new QtTestFramework);
     m_frameworkManager->registerTestFramework(new QuickTestFramework);
     m_frameworkManager->registerTestFramework(new GTestFramework);
+    m_frameworkManager->registerTestFramework(new BoostTestFramework);
 
     m_frameworkManager->synchronizeSettings(ICore::settings());
     m_testSettingPage = new TestSettingsPage(m_settings);
@@ -248,7 +250,7 @@ void AutotestPlugin::onRunFileTriggered()
     if (!document)
         return;
 
-    const Utils::FileName &fileName = document->filePath();
+    const Utils::FilePath &fileName = document->filePath();
     if (fileName.isEmpty())
         return;
 
@@ -355,9 +357,9 @@ void AutotestPlugin::popupResultsPane()
         s_instance->m_resultsPane->popup(Core::IOutputPane::NoModeSwitch);
 }
 
-QList<QObject *> AutotestPlugin::createTestObjects() const
+QVector<QObject *> AutotestPlugin::createTestObjects() const
 {
-    QList<QObject *> tests;
+    QVector<QObject *> tests;
 #ifdef WITH_TESTS
     tests << new AutoTestUnitTests(TestTreeModel::instance());
 #endif
@@ -366,6 +368,5 @@ QList<QObject *> AutotestPlugin::createTestObjects() const
 
 bool ChoicePair::matches(const ProjectExplorer::RunConfiguration *rc) const
 {
-    return rc ? (rc->displayName() == displayName && rc->runnable().executable == executable)
-              : false;
+    return rc && rc->displayName() == displayName && rc->runnable().executable.toString() == executable;
 }

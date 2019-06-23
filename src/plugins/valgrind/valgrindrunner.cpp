@@ -46,7 +46,7 @@ class ValgrindRunner::Private : public QObject
 public:
     Private(ValgrindRunner *owner) : q(owner) {}
 
-    void run();
+    bool run();
 
     void handleRemoteStderr(const QString &b);
     void handleRemoteStdout(const QString &b);
@@ -80,8 +80,44 @@ public:
     bool disableXml = false;
 };
 
-void ValgrindRunner::Private::run()
+bool ValgrindRunner::Private::run()
 {
+    CommandLine cmd{FilePath::fromString(m_valgrindExecutable)};
+
+    if (!localServerAddress.isNull()) {
+        if (!q->startServers())
+            return false;
+
+        cmd.addArg("--child-silent-after-fork=yes");
+
+        bool enableXml = !disableXml;
+
+        auto handleSocketParameter = [&enableXml, &cmd](const QString &prefix, const QTcpServer &tcpServer)
+        {
+            QHostAddress serverAddress = tcpServer.serverAddress();
+            if (serverAddress.protocol() != QAbstractSocket::IPv4Protocol) {
+                // Report will end up in the Application Output pane, i.e. not have
+                // clickable items, but that's better than nothing.
+                qWarning("Need IPv4 for valgrind");
+                enableXml = false;
+            } else {
+                cmd.addArg(QString("%1=%2:%3").arg(prefix).arg(serverAddress.toString())
+                           .arg(tcpServer.serverPort()));
+            }
+        };
+
+        handleSocketParameter("--xml-socket", xmlServer);
+        handleSocketParameter("--log-socket", logServer);
+
+        if (enableXml)
+            cmd.addArg("--xml=yes");
+    }
+    cmd.addArgs(m_valgrindArguments);
+
+    m_valgrindProcess.setProcessChannelMode(channelMode);
+    // consider appending our options last so they override any interfering user-supplied options
+    // -q as suggested by valgrind manual
+
     connect(&m_valgrindProcess, &ApplicationLauncher::processExited,
             this, &ValgrindRunner::Private::closed);
     connect(&m_valgrindProcess, &ApplicationLauncher::processStarted,
@@ -100,26 +136,26 @@ void ValgrindRunner::Private::run()
     connect(&m_valgrindProcess, &ApplicationLauncher::remoteProcessStarted,
             this, &ValgrindRunner::Private::remoteProcessStarted);
 
-    QStringList fullArgs = m_valgrindArguments;
     if (HostOsInfo::isMacHost())
         // May be slower to start but without it we get no filenames for symbols.
-        fullArgs << "--dsymutil=yes";
-    fullArgs << m_debuggee.executable;
+        cmd.addArg("--dsymutil=yes");
+    cmd.addArg(m_debuggee.executable.toString());
+    cmd.addArgs(m_debuggee.commandLineArguments, CommandLine::Raw);
+
+    emit q->valgrindExecuted(cmd.toUserOutput());
 
     Runnable valgrind;
-    valgrind.executable = m_valgrindExecutable;
+    valgrind.setCommandLine(cmd);
     valgrind.workingDirectory = m_debuggee.workingDirectory;
     valgrind.environment = m_debuggee.environment;
     valgrind.device = m_device;
-    valgrind.commandLineArguments = QtcProcess::joinArgs(fullArgs, m_device->osType());
-    Utils::QtcProcess::addArgs(&valgrind.commandLineArguments, m_debuggee.commandLineArguments);
-    emit q->valgrindExecuted(QtcProcess::quoteArg(valgrind.executable) + ' '
-                             + valgrind.commandLineArguments);
 
     if (m_device->type() == ProjectExplorer::Constants::DESKTOP_DEVICE_TYPE)
         m_valgrindProcess.start(valgrind);
     else
         m_valgrindProcess.start(valgrind, m_device);
+
+    return true;
 }
 
 void ValgrindRunner::Private::handleRemoteStderr(const QString &b)
@@ -154,7 +190,7 @@ void ValgrindRunner::Private::remoteProcessStarted()
     const QString proc = m_valgrindExecutable.split(' ').last();
 
     Runnable findPid;
-    findPid.executable = "/bin/sh";
+    findPid.executable = FileName::fromString("/bin/sh");
     // sleep required since otherwise we might only match "bash -c..."
     //  and not the actual valgrind run
     findPid.commandLineArguments = QString("-c \""
@@ -164,7 +200,7 @@ void ValgrindRunner::Private::remoteProcessStarted()
                                            // we pick the last one, first would be "bash -c ..."
                                            " | awk '{print $1;}'" // get pid
                                            "\""
-                                           ).arg(proc, Utils::FileName::fromString(m_debuggee.executable).fileName());
+                                           ).arg(proc, m_debuggee.executable.fileName());
 
 //    m_remote.m_findPID = m_remote.m_connection->createRemoteProcess(cmd.toUtf8());
     connect(&m_findPID, &ApplicationLauncher::remoteStderr,
@@ -272,47 +308,9 @@ void ValgrindRunner::waitForFinished() const
     loop.exec();
 }
 
-static void handleSocketParameter(const QString &prefix, const QTcpServer &tcpServer,
-                            bool *useXml, QStringList *arguments)
-{
-    QHostAddress serverAddress = tcpServer.serverAddress();
-    if (serverAddress.protocol() != QAbstractSocket::IPv4Protocol) {
-        // Report will end up in the Application Output pane, i.e. not have
-        // clickable items, but that's better than nothing.
-        qWarning("Need IPv4 for valgrind");
-        *useXml = false;
-    } else {
-        *arguments << QString("%1=%2:%3").arg(prefix).arg(serverAddress.toString())
-                                         .arg(tcpServer.serverPort());
-    }
-}
-
 bool ValgrindRunner::start()
 {
-    if (!d->localServerAddress.isNull()) {
-        if (!startServers())
-            return false;
-
-        bool enableXml = !d->disableXml;
-
-        QStringList arguments = {"--child-silent-after-fork=yes"};
-
-        handleSocketParameter("--xml-socket", d->xmlServer, &enableXml, &arguments);
-        handleSocketParameter("--log-socket", d->logServer, &enableXml, &arguments);
-
-        if (enableXml)
-            arguments << "--xml=yes";
-
-        d->m_valgrindArguments = arguments + d->m_valgrindArguments;
-    }
-
-    d->m_valgrindProcess.setProcessChannelMode(d->channelMode);
-    // consider appending our options last so they override any interfering user-supplied options
-    // -q as suggested by valgrind manual
-    d->m_valgrindExecutable = d->m_valgrindExecutable;
-    d->run();
-
-    return true;
+    return d->run();
 }
 
 void ValgrindRunner::processError(QProcess::ProcessError e)

@@ -81,14 +81,11 @@ static const char warningExampleKeyC[] = "ProjectExplorer.CustomToolChain.Warnin
 // CustomToolChain
 // --------------------------------------------------------------------------
 
-CustomToolChain::CustomToolChain(Detection d) :
-    ToolChain(Constants::CUSTOM_TOOLCHAIN_TYPEID, d),
+CustomToolChain::CustomToolChain() :
+    ToolChain(Constants::CUSTOM_TOOLCHAIN_TYPEID),
     m_outputParserId(GccParser::id())
-{ }
-
-QString CustomToolChain::typeDisplayName() const
 {
-    return Internal::CustomToolChainFactory::tr("Custom");
+    setTypeDisplayName(Internal::CustomToolChainFactory::tr("Custom"));
 }
 
 Abi CustomToolChain::targetAbi() const
@@ -176,7 +173,7 @@ ToolChain::BuiltInHeaderPathsRunner CustomToolChain::createBuiltInHeaderPathsRun
 }
 
 HeaderPaths CustomToolChain::builtInHeaderPaths(const QStringList &cxxFlags,
-                                               const FileName &fileName) const
+                                               const FilePath &fileName) const
 {
     return createBuiltInHeaderPathsRunner()(cxxFlags, fileName.toString(), "");
 }
@@ -184,15 +181,15 @@ HeaderPaths CustomToolChain::builtInHeaderPaths(const QStringList &cxxFlags,
 void CustomToolChain::addToEnvironment(Environment &env) const
 {
     if (!m_compilerCommand.isEmpty()) {
-        FileName path = m_compilerCommand.parentDir();
+        FilePath path = m_compilerCommand.parentDir();
         env.prependOrSetPath(path.toString());
-        FileName makePath = m_makeCommand.parentDir();
+        FilePath makePath = m_makeCommand.parentDir();
         if (makePath != path)
             env.prependOrSetPath(makePath.toString());
     }
 }
 
-FileNameList CustomToolChain::suggestedMkspecList() const
+QStringList CustomToolChain::suggestedMkspecList() const
 {
     return m_mkspecs;
 }
@@ -229,7 +226,7 @@ void CustomToolChain::setHeaderPaths(const QStringList &list)
     toolChainUpdated();
 }
 
-void CustomToolChain::setCompilerCommand(const FileName &path)
+void CustomToolChain::setCompilerCommand(const FilePath &path)
 {
     if (path == m_compilerCommand)
         return;
@@ -237,12 +234,12 @@ void CustomToolChain::setCompilerCommand(const FileName &path)
     toolChainUpdated();
 }
 
-FileName CustomToolChain::compilerCommand() const
+FilePath CustomToolChain::compilerCommand() const
 {
     return m_compilerCommand;
 }
 
-void CustomToolChain::setMakeCommand(const FileName &path)
+void CustomToolChain::setMakeCommand(const FilePath &path)
 {
     if (path == m_makeCommand)
         return;
@@ -250,9 +247,9 @@ void CustomToolChain::setMakeCommand(const FileName &path)
     toolChainUpdated();
 }
 
-QString CustomToolChain::makeCommand(const Environment &) const
+FilePath CustomToolChain::makeCommand(const Environment &) const
 {
-    return m_makeCommand.toString();
+    return m_makeCommand;
 }
 
 void CustomToolChain::setCxx11Flags(const QStringList &flags)
@@ -270,10 +267,7 @@ const QStringList &CustomToolChain::cxx11Flags() const
 
 void CustomToolChain::setMkspecs(const QString &specs)
 {
-    Utils::FileNameList tmp
-            = Utils::transform(specs.split(QLatin1Char(',')),
-                               [](QString fn) { return FileName::fromString(fn); });
-
+    const QStringList tmp = specs.split(',');
     if (tmp == m_mkspecs)
         return;
     m_mkspecs = tmp;
@@ -282,16 +276,7 @@ void CustomToolChain::setMkspecs(const QString &specs)
 
 QString CustomToolChain::mkspecs() const
 {
-    QString list;
-    for (const FileName &spec : m_mkspecs)
-        list.append(spec.toString() + QLatin1Char(','));
-    list.chop(1);
-    return list;
-}
-
-ToolChain *CustomToolChain::clone() const
-{
-    return new CustomToolChain(*this);
+    return m_mkspecs.join(',');
 }
 
 QVariantMap CustomToolChain::toMap() const
@@ -327,8 +312,8 @@ bool CustomToolChain::fromMap(const QVariantMap &data)
     if (!ToolChain::fromMap(data))
         return false;
 
-    m_compilerCommand = FileName::fromString(data.value(QLatin1String(compilerCommandKeyC)).toString());
-    m_makeCommand = FileName::fromString(data.value(QLatin1String(makeCommandKeyC)).toString());
+    m_compilerCommand = FilePath::fromString(data.value(QLatin1String(compilerCommandKeyC)).toString());
+    m_makeCommand = FilePath::fromString(data.value(QLatin1String(makeCommandKeyC)).toString());
     m_targetAbi = Abi::fromString(data.value(QLatin1String(targetAbiKeyC)).toString());
     const QStringList macros = data.value(QLatin1String(predefinedMacrosKeyC)).toStringList();
     m_predefinedMacros = Macro::toMacros(macros.join('\n').toUtf8());
@@ -421,26 +406,8 @@ CustomToolChainFactory::CustomToolChainFactory()
     setDisplayName(tr("Custom"));
     setSupportedToolChainType(Constants::CUSTOM_TOOLCHAIN_TYPEID);
     setSupportsAllLanguages(true);
-}
-
-bool CustomToolChainFactory::canCreate()
-{
-    return true;
-}
-
-ToolChain *CustomToolChainFactory::create()
-{
-    return new CustomToolChain(ToolChain::ManualDetection);
-}
-
-ToolChain *CustomToolChainFactory::restore(const QVariantMap &data)
-{
-    auto tc = new CustomToolChain(ToolChain::ManualDetection);
-    if (tc->fromMap(data))
-        return tc;
-
-    delete tc;
-    return nullptr;
+    setToolchainConstructor([] { return new CustomToolChain; });
+    setUserCreatable(true);
 }
 
 // --------------------------------------------------------------------------
@@ -620,8 +587,8 @@ void CustomToolChainConfigWidget::setFromToolchain()
     QSignalBlocker blocker(this);
     auto tc = static_cast<CustomToolChain *>(toolChain());
     m_compilerCommand->setFileName(tc->compilerCommand());
-    m_makeCommand->setFileName(FileName::fromString(tc->makeCommand(Environment())));
-    m_abiWidget->setAbis(QList<Abi>(), tc->targetAbi());
+    m_makeCommand->setFileName(tc->makeCommand(Environment()));
+    m_abiWidget->setAbis(Abis(), tc->targetAbi());
     const QStringList macroLines = Utils::transform<QList>(tc->rawPredefinedMacros(), [](const Macro &m) {
         return QString::fromUtf8(m.toKeyValue(QByteArray()));
     });
@@ -639,7 +606,7 @@ bool CustomToolChainConfigWidget::isDirtyImpl() const
     auto tc = static_cast<CustomToolChain *>(toolChain());
     Q_ASSERT(tc);
     return m_compilerCommand->fileName() != tc->compilerCommand()
-            || m_makeCommand->path() != tc->makeCommand(Environment())
+            || m_makeCommand->path() != tc->makeCommand(Environment()).toString()
             || m_abiWidget->currentAbi() != tc->targetAbi()
             || Macro::toMacros(m_predefinedDetails->text().toUtf8()) != tc->rawPredefinedMacros()
             || m_headerDetails->entries() != tc->headerPathsList()

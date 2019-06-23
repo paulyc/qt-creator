@@ -47,14 +47,14 @@ public:
     QSet<Core::Id> targetDeviceTypes() const override;
 
     QString qnxHost() const;
-    Utils::FileName qnxTarget() const;
+    Utils::FilePath qnxTarget() const;
 
     QString cpuDir() const;
 
     QVariantMap toMap() const override;
     void fromMap(const QVariantMap &map) override;
 
-    QList<ProjectExplorer::Abi> detectQtAbis() const override;
+    ProjectExplorer::Abis detectQtAbis() const override;
 
     void addToEnvironment(const ProjectExplorer::Kit *k, Utils::Environment &env) const override;
     Utils::Environment qmakeRunEnvironment() const override;
@@ -73,13 +73,13 @@ protected:
 private:
     void updateEnvironment() const;
 
-    QList<Utils::EnvironmentItem> environment() const;
+    Utils::EnvironmentItems environment() const;
 
     QString m_sdpPath;
 
     mutable QString m_cpuDir;
     mutable bool m_environmentUpToDate = false;
-    mutable QList<Utils::EnvironmentItem> m_qnxEnv;
+    mutable Utils::EnvironmentItems m_qnxEnv;
 };
 
 class QnxQtVersionFactory : public QtSupport::QtVersionFactory

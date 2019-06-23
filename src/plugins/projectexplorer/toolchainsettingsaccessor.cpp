@@ -184,7 +184,7 @@ ToolChainSettingsAccessor::ToolChainSettingsAccessor() :
                               QCoreApplication::translate("ProjectExplorer::ToolChainManager", "Tool Chains"),
                               Core::Constants::IDE_DISPLAY_NAME)
 {
-    setBaseFilePath(FileName::fromString(Core::ICore::userResourcePath() + TOOLCHAIN_FILENAME));
+    setBaseFilePath(FilePath::fromString(Core::ICore::userResourcePath() + TOOLCHAIN_FILENAME));
 
     addVersionUpgrader(std::make_unique<ToolChainSettingsUpgraderV0>());
 }
@@ -193,7 +193,7 @@ QList<ToolChain *> ToolChainSettingsAccessor::restoreToolChains(QWidget *parent)
 {
     // read all tool chains from SDK
     const QList<ToolChain *> systemFileTcs
-            = toolChains(restoreSettings(FileName::fromString(Core::ICore::installerResourcePath() + TOOLCHAIN_FILENAME),
+            = toolChains(restoreSettings(FilePath::fromString(Core::ICore::installerResourcePath() + TOOLCHAIN_FILENAME),
                                          parent));
     for (ToolChain * const systemTc : systemFileTcs)
         systemTc->setDetection(ToolChain::AutoDetectionFromSdk);
@@ -292,22 +292,26 @@ namespace ProjectExplorer {
 
 using TCList = QList<ToolChain *>;
 
+const char TestTokenKey[] = "TestTokenKey";
+const char TestToolChainType[] = "TestToolChainType";
+
+
 class TTC : public ToolChain
 {
 public:
-    TTC(ToolChain::Detection d, const QByteArray &t, bool v = true) :
-        ToolChain("TestToolChainType", d),
+    TTC(const QByteArray &t = {}, bool v = true) :
+        ToolChain(TestToolChainType),
         token(t),
         m_valid(v)
     {
         m_toolChains.append(this);
         setLanguage(Constants::CXX_LANGUAGE_ID);
+        setTypeDisplayName("Test Tool Chain");
     }
 
     static QList<TTC *> toolChains();
     static bool hasToolChains() { return !m_toolChains.isEmpty(); }
 
-    QString typeDisplayName() const override { return QString("Test Tool Chain"); }
     Abi targetAbi() const override { return Abi::hostAbi(); }
     bool isValid() const override { return m_valid; }
     MacroInspectionRunner createMacroInspectionRunner() const override { return MacroInspectionRunner(); }
@@ -315,28 +319,36 @@ public:
     LanguageExtensions languageExtensions(const QStringList &cxxflags) const override { Q_UNUSED(cxxflags); return LanguageExtension::None; }
     WarningFlags warningFlags(const QStringList &cflags) const override { Q_UNUSED(cflags); return WarningFlags::NoWarnings; }
     BuiltInHeaderPathsRunner createBuiltInHeaderPathsRunner() const override { return BuiltInHeaderPathsRunner(); }
-    HeaderPaths builtInHeaderPaths(const QStringList &cxxflags, const FileName &sysRoot) const override
+    HeaderPaths builtInHeaderPaths(const QStringList &cxxflags, const FilePath &sysRoot) const override
     { Q_UNUSED(cxxflags); Q_UNUSED(sysRoot); return {}; }
     void addToEnvironment(Environment &env) const override { Q_UNUSED(env); }
-    QString makeCommand(const Environment &env) const override { Q_UNUSED(env); return QString("make"); }
-    FileName compilerCommand() const override { return Utils::FileName::fromString("/tmp/test/gcc"); }
+    FilePath makeCommand(const Environment &) const override { return FilePath::fromString("make"); }
+    FilePath compilerCommand() const override { return Utils::FilePath::fromString("/tmp/test/gcc"); }
     IOutputParser *outputParser() const override { return nullptr; }
     std::unique_ptr<ToolChainConfigWidget> createConfigurationWidget() override { return nullptr; }
-    TTC *clone() const override { return new TTC(*this); }
     bool operator ==(const ToolChain &other) const override {
         if (!ToolChain::operator==(other))
             return false;
         return static_cast<const TTC *>(&other)->token == token;
     }
 
+    bool fromMap(const QVariantMap &data) final
+    {
+        ToolChain::fromMap(data);
+        token = data.value(TestTokenKey).toByteArray();
+        return true;
+    }
+
+    QVariantMap toMap() const final
+    {
+        QVariantMap data = ToolChain::toMap();
+        data[TestTokenKey] = token;
+        return data;
+    }
+
     QByteArray token;
 
 private:
-    TTC(const TTC &other) :
-        ToolChain(other.typeId(), other.detection()),
-        token(other.token)
-    {}
-
     bool m_valid = false;
 
     static QList<TTC *> m_toolChains;
@@ -354,6 +366,17 @@ namespace ProjectExplorer {
 
 void ProjectExplorerPlugin::testToolChainMerging_data()
 {
+    class TestToolChainFactory : ToolChainFactory
+    {
+    public:
+        TestToolChainFactory() {
+            setSupportedToolChainType(TestToolChainType);
+            setToolchainConstructor([] { return new TTC; });
+        }
+    };
+
+    TestToolChainFactory factory;
+
     QTest::addColumn<TCList>("system");
     QTest::addColumn<TCList>("user");
     QTest::addColumn<TCList>("autodetect");
@@ -361,33 +384,43 @@ void ProjectExplorerPlugin::testToolChainMerging_data()
     QTest::addColumn<TCList>("toRegister");
 
     TTC *system1 = nullptr;
-    TTC *system1c = nullptr;
+    ToolChain *system1c = nullptr;
     TTC *system2 = nullptr;
     TTC *system3i = nullptr;
     TTC *user1 = nullptr;
-    TTC *user1c = nullptr;
+    ToolChain *user1c = nullptr;
     TTC *user3i = nullptr;
     TTC *user2 = nullptr;
     TTC *auto1 = nullptr;
-    TTC *auto1c = nullptr;
+    ToolChain *auto1c = nullptr;
     TTC *auto1_2 = nullptr;
     TTC *auto2 = nullptr;
     TTC *auto3i = nullptr;
 
     if (!TTC::hasToolChains()) {
-        system1 = new TTC(ToolChain::AutoDetection, "system1"); Q_UNUSED(system1);
-        system1c = system1->clone(); Q_UNUSED(system1c);
-        system2 = new TTC(ToolChain::AutoDetection, "system2"); Q_UNUSED(system2);
-        system3i = new TTC(ToolChain::AutoDetection, "system3", false); Q_UNUSED(system3i);
-        user1 = new TTC(ToolChain::ManualDetection, "user1"); Q_UNUSED(user1);
-        user1c = user1->clone(); Q_UNUSED(user1c);
-        user2 = new TTC(ToolChain::ManualDetection, "user2"); Q_UNUSED(user2);
-        user3i = new TTC(ToolChain::ManualDetection, "user3", false); Q_UNUSED(user3i);
-        auto1 = new TTC(ToolChain::AutoDetectionFromSettings, "auto1"); Q_UNUSED(auto1);
-        auto1c = auto1->clone(); Q_UNUSED(auto1c);
-        auto1_2 = new TTC(ToolChain::AutoDetectionFromSettings, "auto1"); Q_UNUSED(auto1_2);
-        auto2 = new TTC(ToolChain::AutoDetectionFromSettings, "auto2"); Q_UNUSED(auto2);
-        auto3i = new TTC(ToolChain::AutoDetectionFromSettings, "auto3", false); Q_UNUSED(auto3i);
+        system1 = new TTC("system1");
+        system1->setDetection(ToolChain::AutoDetection);
+        system1c = system1->clone(); Q_UNUSED(system1c)
+        system2 = new TTC("system2");
+        system2->setDetection(ToolChain::AutoDetection);
+        system3i = new TTC("system3", false);
+        system3i->setDetection(ToolChain::AutoDetection);
+        user1 = new TTC("user1");
+        user1->setDetection(ToolChain::ManualDetection);
+        user1c = user1->clone(); Q_UNUSED(user1c)
+        user2 = new TTC("user2");
+        user2->setDetection(ToolChain::ManualDetection);
+        user3i = new TTC("user3", false);
+        user3i->setDetection(ToolChain::ManualDetection);
+        auto1 = new TTC("auto1");
+        auto1->setDetection(ToolChain::AutoDetection);
+        auto1c = auto1->clone();
+        auto1_2 = new TTC("auto1");
+        auto1_2->setDetection(ToolChain::AutoDetection);
+        auto2 = new TTC("auto2");
+        auto2->setDetection(ToolChain::AutoDetection);
+        auto3i = new TTC("auto3", false);
+        auto3i->setDetection(ToolChain::AutoDetection);
     }
 
     QTest::newRow("no toolchains")

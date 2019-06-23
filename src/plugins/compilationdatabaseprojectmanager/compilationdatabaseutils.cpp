@@ -38,6 +38,7 @@
 using namespace ProjectExplorer;
 
 namespace CompilationDatabaseProjectManager {
+namespace Internal {
 
 static QString updatedPathFlag(const QString &pathStr, const QString &workingDir)
 {
@@ -185,7 +186,7 @@ void filteredFlags(const QString &fileName,
 
         if (flag.startsWith("--sysroot=")) {
             if (sysRoot.isEmpty())
-                sysRoot = flag.mid(10);
+                sysRoot = updatedPathFlag(flag.mid(10), workingDir);
             continue;
         }
 
@@ -240,4 +241,5 @@ QStringList splitCommandLine(QString commandLine, QSet<QString> &flagsCache)
     return result;
 }
 
+} // namespace Internal
 } // namespace CompilationDatabaseProjectManager

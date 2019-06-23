@@ -27,6 +27,7 @@
 
 #include <coreplugin/coreconstants.h>
 #include <coreplugin/editormanager/editormanager.h>
+#include <coreplugin/helpmanager.h>
 #include <coreplugin/icore.h>
 #include <coreplugin/imode.h>
 #include <coreplugin/modemanager.h>
@@ -44,6 +45,7 @@
 #include <QApplication>
 #include <QDesktopServices>
 #include <QFontDatabase>
+#include <QFileInfo>
 #include <QPointer>
 #include <QQmlContext>
 #include <QQmlEngine>
@@ -64,6 +66,8 @@ class ProjectModel : public QAbstractListModel
     Q_OBJECT
 public:
     enum { FilePathRole = Qt::UserRole+1, PrettyFilePathRole };
+
+     Q_PROPERTY(bool communityVersion MEMBER m_communityVersion NOTIFY communityVersionChanged)
 
     explicit ProjectModel(QObject *parent = nullptr);
 
@@ -102,6 +106,12 @@ public:
     }
 public slots:
     void resetProjects();
+
+signals:
+    void communityVersionChanged();
+
+private:
+    bool m_communityVersion = false;
 };
 
 ProjectModel::ProjectModel(QObject *parent)
@@ -111,6 +121,12 @@ ProjectModel::ProjectModel(QObject *parent)
             &ProjectExplorer::ProjectExplorerPlugin::recentProjectsChanged,
             this,
             &ProjectModel::resetProjects);
+
+#ifdef LICENSECHECKER
+    if (!Utils::findOrDefault(ExtensionSystem::PluginManager::plugins(),
+                             Utils::equal(&ExtensionSystem::PluginSpec::name, QString("LicenseChecker"))))
+        m_communityVersion = true;
+#endif
 }
 
 int ProjectModel::rowCount(const QModelIndex &) const
@@ -189,6 +205,12 @@ bool StudioWelcomePlugin::initialize(const QStringList &arguments, QString *erro
     qmlRegisterType<ProjectModel>("projectmodel", 1, 0, "ProjectModel");
 
     m_welcomeMode = new WelcomeMode;
+
+    QFontDatabase fonts;
+    QFontDatabase::addApplicationFont(":/studiofonts/TitilliumWeb-Regular.ttf");
+    QFont systemFont("Titillium Web", QApplication::font().pointSize());
+    QApplication::setFont(systemFont);
+
     return true;
 }
 
@@ -204,9 +226,9 @@ void StudioWelcomePlugin::extensionsInitialized()
             s_view->setWindowModality(Qt::ApplicationModal);
             s_view->engine()->addImportPath("qrc:/studiofonts");
         #ifdef QT_DEBUG
-            s_view->engine()->addImportPath(QLatin1Literal(STUDIO_QML_PATH)
+            s_view->engine()->addImportPath(QLatin1String(STUDIO_QML_PATH)
                                             + "splashscreen/imports");
-            s_view->setSource(QUrl::fromLocalFile(QLatin1Literal(STUDIO_QML_PATH)
+            s_view->setSource(QUrl::fromLocalFile(QLatin1String(STUDIO_QML_PATH)
                                           + "splashscreen/main.qml"));
         #else
             s_view->engine()->addImportPath("qrc:/qml/splashscreen/imports");
@@ -221,6 +243,11 @@ void StudioWelcomePlugin::extensionsInitialized()
 
             s_view->show();
             s_view->raise();
+
+            QTimer::singleShot(15000, [](){
+                if (s_view)
+                    s_view->close();
+            });
         });
     }
 }
@@ -265,9 +292,9 @@ WelcomeMode::WelcomeMode()
     m_modeWidget->setResizeMode(QQuickWidget::SizeRootObjectToView);
     m_modeWidget->engine()->addImportPath("qrc:/studiofonts");
 #ifdef QT_DEBUG
-    m_modeWidget->engine()->addImportPath(QLatin1Literal(STUDIO_QML_PATH)
+    m_modeWidget->engine()->addImportPath(QLatin1String(STUDIO_QML_PATH)
                                     + "welcomepage/imports");
-    m_modeWidget->setSource(QUrl::fromLocalFile(QLatin1Literal(STUDIO_QML_PATH)
+    m_modeWidget->setSource(QUrl::fromLocalFile(QLatin1String(STUDIO_QML_PATH)
                                   + "welcomepage/main.qml"));
 #else
     m_modeWidget->engine()->addImportPath("qrc:/qml/welcomepage/imports");
@@ -275,6 +302,16 @@ WelcomeMode::WelcomeMode()
 #endif
 
     setWidget(m_modeWidget);
+
+    QStringList designStudioQchPathes = {Core::HelpManager::documentationPath()
+                                         + "/qtdesignstudio.qch",
+                                         Core::HelpManager::documentationPath() + "/qtquick.qch",
+                                         Core::HelpManager::documentationPath()
+                                         + "/qtquickcontrols.qch"};
+
+    Core::HelpManager::registerDocumentation(
+                Utils::filtered(designStudioQchPathes,
+                                [](const QString &path) { return QFileInfo::exists(path); }));
 }
 
 WelcomeMode::~WelcomeMode()

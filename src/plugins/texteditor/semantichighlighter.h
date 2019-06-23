@@ -71,6 +71,8 @@ public:
     }
 };
 
+using HighlightingResults = QList<HighlightingResult>;
+
 namespace SemanticHighlighter {
 
 // Applies the future results [from, to) and applies the extra formats
@@ -85,6 +87,15 @@ void TEXTEDITOR_EXPORT incrementalApplyExtraAdditionalFormats(
         const QFuture<HighlightingResult> &future,
         int from, int to,
         const QHash<int, QTextCharFormat> &kindToFormat);
+
+// Clears all extra highlights and applies the extra formats
+// indicated by Result::kind and kindToFormat to the correct location using
+// SyntaxHighlighter::setExtraFormats. In contrast to
+// incrementalApplyExtraAdditionalFormats the results do not have to be ordered by line.
+void TEXTEDITOR_EXPORT setExtraAdditionalFormats(
+    SyntaxHighlighter *highlighter,
+    const HighlightingResults &results,
+    const QHash<int, QTextCharFormat> &kindToFormat);
 
 // Cleans the extra additional formats after the last result of the Future
 // until the end of the document.

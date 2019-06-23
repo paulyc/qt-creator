@@ -121,7 +121,7 @@ public:
 
     explicit GitClient();
 
-    Utils::FileName vcsBinary() const override;
+    Utils::FilePath vcsBinary() const override;
     unsigned gitVersion(QString *errorMessage = nullptr) const;
 
     VcsBase::VcsCommand *vcsExecAbortable(const QString &workingDirectory,
@@ -306,7 +306,7 @@ public:
     void launchGitK(const QString &workingDirectory, const QString &fileName);
     void launchGitK(const QString &workingDirectory) { launchGitK(workingDirectory, QString()); }
     bool launchGitGui(const QString &workingDirectory);
-    Utils::FileName gitBinDirectory();
+    Utils::FilePath gitBinDirectory();
 
     void launchRepositoryBrowser(const QString &workingDirectory);
 
@@ -326,6 +326,7 @@ public:
     static QString msgNoChangedFiles();
     static QString msgNoCommits(bool includeRemote);
     void show(const QString &source, const QString &id, const QString &name = QString());
+    void archive(const QString &workingDirectory, const QString &commit);
 
 private:
     void finishSubmoduleUpdate();
@@ -369,7 +370,7 @@ private:
                                     QString msgBoxText, const QString &buttonName,
                                     const QString &gitCommand, ContinueCommandMode continueMode);
 
-    mutable Utils::FileName m_gitVersionForBinary;
+    mutable Utils::FilePath m_gitVersionForBinary;
     mutable unsigned m_cachedGitVersion;
 
     QString m_gitQtcEditor;

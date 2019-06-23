@@ -70,6 +70,7 @@
 #include <memory>
 
 using namespace ProjectExplorer;
+using namespace Utils;
 using namespace Android::Internal;
 
 namespace {
@@ -90,10 +91,10 @@ static void setupProcessParameters(ProcessParameters *pp,
                                    const QString &command)
 {
     pp->setMacroExpander(bc->macroExpander());
-    pp->setWorkingDirectory(bc->buildDirectory().toString());
+    pp->setWorkingDirectory(bc->buildDirectory());
     Utils::Environment env = bc->environment();
     pp->setEnvironment(env);
-    pp->setCommand(command);
+    pp->setCommand(FilePath::fromString(command));
     pp->setArguments(Utils::QtcProcess::joinArgs(arguments));
     pp->resolveAll();
 }
@@ -167,7 +168,7 @@ bool AndroidBuildApkStep::init()
 
     const QVersionNumber sdkToolsVersion = AndroidConfigurations::currentConfig().sdkToolsVersion();
     if (sdkToolsVersion >= gradleScriptRevokedSdkVersion) {
-        if (!version->sourcePath().appendPath("src/3rdparty/gradle").exists()) {
+        if (!version->sourcePath().pathAppended("src/3rdparty/gradle").exists()) {
             emit addOutput(tr("The installed SDK tools version (%1) does not include Gradle "
                               "scripts. The minimum Qt version required for Gradle build to work "
                               "is %2").arg(sdkToolsVersion.toString()).arg("5.9.0/5.6.3"),
@@ -190,7 +191,7 @@ bool AndroidBuildApkStep::init()
 
     auto parser = new JavaParser;
     parser->setProjectFileList(Utils::transform(target()->project()->files(ProjectExplorer::Project::AllFiles),
-                                                &Utils::FileName::toString));
+                                                &Utils::FilePath::toString));
 
     RunConfiguration *rc = target()->activeRunConfiguration();
     const QString buildKey = rc ? rc->buildKey() : QString();
@@ -201,8 +202,8 @@ bool AndroidBuildApkStep::init()
         sourceDirName = node->data(Constants::AndroidPackageSourceDir).toString();
 
     QFileInfo sourceDirInfo(sourceDirName);
-    parser->setSourceDirectory(Utils::FileName::fromString(sourceDirInfo.canonicalFilePath()));
-    parser->setBuildDirectory(Utils::FileName::fromString(bc->buildDirectory().appendPath(Constants::ANDROID_BUILDDIRECTORY).toString()));
+    parser->setSourceDirectory(Utils::FilePath::fromString(sourceDirInfo.canonicalFilePath()));
+    parser->setBuildDirectory(bc->buildDirectory().pathAppended(Constants::ANDROID_BUILDDIRECTORY));
     setOutputParser(parser);
 
     m_openPackageLocationForRun = m_openPackageLocation;
@@ -219,7 +220,7 @@ bool AndroidBuildApkStep::init()
     if (Utils::HostOsInfo::isWindowsHost())
         command += ".exe";
 
-    QString outputDir = bc->buildDirectory().appendPath(Constants::ANDROID_BUILDDIRECTORY).toString();
+    QString outputDir = bc->buildDirectory().pathAppended(Constants::ANDROID_BUILDDIRECTORY).toString();
 
     QString inputFile;
     if (node)
@@ -279,7 +280,7 @@ bool AndroidBuildApkStep::init()
     // Generate arguments with keystore password concealed
     ProjectExplorer::ProcessParameters pp2;
     setupProcessParameters(&pp2, bc, argumentsPasswordConcealed, command);
-    m_command = pp2.effectiveCommand();
+    m_command = pp2.effectiveCommand().toString();
     m_argumentsPasswordConcealed = pp2.prettyArguments();
 
     return true;
@@ -374,9 +375,9 @@ void AndroidBuildApkStep::doRun()
 
     auto setup = [this] {
         auto bc = target()->activeBuildConfiguration();
-        Utils::FileName androidLibsDir = bc->buildDirectory()
-                .appendPath("android-build/libs")
-                .appendPath(AndroidManager::targetArch(target()));
+        Utils::FilePath androidLibsDir = bc->buildDirectory()
+                .pathAppended("android-build/libs")
+                .pathAppended(AndroidManager::targetArch(target()));
         if (!androidLibsDir.exists() && !QDir{bc->buildDirectory().toString()}.mkpath(androidLibsDir.toString()))
             return false;
 
@@ -395,7 +396,7 @@ void AndroidBuildApkStep::doRun()
 
         // Copy targets to android build folder
         for (const auto &target : targets) {
-            if (!copyFileIfNewer(target, androidLibsDir.appendPath(QFileInfo{target}.fileName()).toString()))
+            if (!copyFileIfNewer(target, androidLibsDir.pathAppended(QFileInfo{target}.fileName()).toString()))
                 return false;
         }
 
@@ -414,9 +415,9 @@ void AndroidBuildApkStep::doRun()
         QString qmlRootPath = node->data("QML_ROOT_PATH").toString();
         if (qmlRootPath.isEmpty())
             qmlRootPath = target()->project()->rootProjectDirectory().toString();
-         deploySettings["qml-root-path"] = qmlImportPath;
+         deploySettings["qml-root-path"] = qmlRootPath;
 
-        QFile f{bc->buildDirectory().appendPath("android_deployment_settings.json").toString()};
+        QFile f{bc->buildDirectory().pathAppended("android_deployment_settings.json").toString()};
         if (!f.open(QIODevice::WriteOnly))
             return false;
         f.write(QJsonDocument{deploySettings}.toJson());
@@ -442,7 +443,7 @@ void AndroidBuildApkStep::processStarted()
 
 bool AndroidBuildApkStep::fromMap(const QVariantMap &map)
 {
-    m_keystorePath = Utils::FileName::fromString(map.value(KeystoreLocationKey).toString());
+    m_keystorePath = Utils::FilePath::fromString(map.value(KeystoreLocationKey).toString());
     m_signPackage = false; // don't restore this
     m_buildTargetSdk = map.value(BuildTargetSdkKey).toString();
     if (m_buildTargetSdk.isEmpty()) {
@@ -464,7 +465,7 @@ QVariantMap AndroidBuildApkStep::toMap() const
     return map;
 }
 
-Utils::FileName AndroidBuildApkStep::keystorePath()
+Utils::FilePath AndroidBuildApkStep::keystorePath()
 {
     return m_keystorePath;
 }
@@ -492,7 +493,7 @@ QVariant AndroidBuildApkStep::data(Core::Id id) const
     return AbstractProcessStep::data(id);
 }
 
-void AndroidBuildApkStep::setKeystorePath(const Utils::FileName &path)
+void AndroidBuildApkStep::setKeystorePath(const Utils::FilePath &path)
 {
     m_keystorePath = path;
     m_certificatePasswd.clear();
@@ -576,8 +577,8 @@ QAbstractItemModel *AndroidBuildApkStep::keystoreCertificates()
 
     Utils::SynchronousProcess keytoolProc;
     keytoolProc.setTimeoutS(30);
-    const Utils::SynchronousProcessResponse response
-            = keytoolProc.run(AndroidConfigurations::currentConfig().keytoolPath().toString(), params);
+    const SynchronousProcessResponse response
+            = keytoolProc.run({AndroidConfigurations::currentConfig().keytoolPath(), params});
     if (response.result > Utils::SynchronousProcessResponse::FinishedError)
         QMessageBox::critical(nullptr, tr("Error"), tr("Failed to run keytool."));
     else

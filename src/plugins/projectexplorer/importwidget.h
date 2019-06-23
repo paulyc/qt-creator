@@ -29,7 +29,7 @@
 
 namespace Utils {
 class PathChooser;
-class FileName;
+class FilePath;
 } // namespace Utils
 
 namespace ProjectExplorer {
@@ -42,10 +42,12 @@ class ImportWidget : public QWidget
 public:
     explicit ImportWidget(QWidget *parent = nullptr);
 
-    void setCurrentDirectory(const Utils::FileName &dir);
+    void setCurrentDirectory(const Utils::FilePath &dir);
+
+    bool lineEditHasFocus() const;
 
 signals:
-    void importFrom(const Utils::FileName &dir);
+    void importFrom(const Utils::FilePath &dir);
 
 private:
     void handleImportRequest();

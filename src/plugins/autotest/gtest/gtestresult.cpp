@@ -30,6 +30,8 @@
 
 #include <coreplugin/id.h>
 
+#include <QRegularExpression>
+
 namespace Autotest {
 namespace Internal {
 
@@ -46,7 +48,7 @@ const QString GTestResult::outputString(bool selected) const
     switch (result()) {
     case ResultType::Pass:
     case ResultType::Fail:
-        output = m_testSetName;
+        output = m_testCaseName;
         if (selected && !desc.isEmpty())
             output.append('\n').append(desc);
         break;
@@ -64,19 +66,19 @@ bool GTestResult::isDirectParentOf(const TestResult *other, bool *needsIntermedi
         return false;
 
     const GTestResult *gtOther = static_cast<const GTestResult *>(other);
-    if (m_testSetName == gtOther->m_testSetName) {
+    if (m_testCaseName == gtOther->m_testCaseName) {
         const ResultType otherResult = other->result();
         if (otherResult == ResultType::MessageInternal || otherResult == ResultType::MessageLocation)
             return result() != ResultType::MessageInternal && result() != ResultType::MessageLocation;
     }
     if (m_iteration != gtOther->m_iteration)
         return false;
-    return isTest() && gtOther->isTestSet();
+    return isTestSuite() && gtOther->isTestCase();
 }
 
 static QString normalizeName(const QString &name)
 {
-    static QRegExp parameterIndex("/\\d+");
+    static QRegularExpression parameterIndex("/\\d+");
 
     QString nameWithoutParameterIndices = name;
     nameWithoutParameterIndices.remove(parameterIndex);
@@ -110,24 +112,24 @@ bool GTestResult::matches(const TestTreeItem *treeItem) const
     if (treeItem->proFile() != m_projectFile)
         return false;
 
-    if (isTest())
-        return matchesTestCase(treeItem);
+    if (isTestSuite())
+        return matchesTestSuite(treeItem);
 
-    return matchesTestFunctionOrSet(treeItem);
-}
-
-bool GTestResult::matchesTestFunctionOrSet(const TestTreeItem *treeItem) const
-{
-    if (treeItem->type() != TestTreeItem::TestFunctionOrSet)
-        return false;
-
-    const QString testItemTestSet = treeItem->parentItem()->name() + '.' + treeItem->name();
-    return testItemTestSet == normalizeName(m_testSetName);
+    return matchesTestCase(treeItem);
 }
 
 bool GTestResult::matchesTestCase(const TestTreeItem *treeItem) const
 {
     if (treeItem->type() != TestTreeItem::TestCase)
+        return false;
+
+    const QString testItemTestCase = treeItem->parentItem()->name() + '.' + treeItem->name();
+    return testItemTestCase == normalizeName(m_testCaseName);
+}
+
+bool GTestResult::matchesTestSuite(const TestTreeItem *treeItem) const
+{
+    if (treeItem->type() != TestTreeItem::TestSuite)
         return false;
 
     return treeItem->name() == normalizeTestName(name());

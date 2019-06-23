@@ -51,7 +51,7 @@ using namespace Utils;
 
 namespace Nim {
 
-static FileName defaultBuildDirectory(const Kit *k,
+static FilePath defaultBuildDirectory(const Kit *k,
                                       const QString &projectFilePath,
                                       const QString &bc,
                                       BuildConfiguration::BuildType buildType)
@@ -62,12 +62,10 @@ static FileName defaultBuildDirectory(const Kit *k,
     QString buildDirectory = expander.expand(ProjectExplorerPlugin::buildDirectoryTemplate());
 
     if (FileUtils::isAbsolutePath(buildDirectory))
-        return FileName::fromString(buildDirectory);
+        return FilePath::fromString(buildDirectory);
 
-    auto projectDir = FileName::fromString(projectFileInfo.absoluteDir().absolutePath());
-    auto result = projectDir.appendPath(buildDirectory);
-
-    return result;
+    auto projectDir = FilePath::fromString(projectFileInfo.absoluteDir().absolutePath());
+    return projectDir.pathAppended(buildDirectory);
 }
 
 NimBuildConfiguration::NimBuildConfiguration(Target *target, Core::Id id)
@@ -108,7 +106,7 @@ void NimBuildConfiguration::initialize(const BuildInfo &info)
             break;
         }
         nimCompilerBuildStep->setDefaultCompilerOptions(defaultOption);
-        Utils::FileNameList nimFiles = project->nimFiles();
+        Utils::FilePathList nimFiles = project->nimFiles();
         if (!nimFiles.isEmpty())
             nimCompilerBuildStep->setTargetNimFile(nimFiles.first());
         buildSteps->appendStep(nimCompilerBuildStep);
@@ -126,15 +124,15 @@ BuildConfiguration::BuildType NimBuildConfiguration::buildType() const
     return BuildConfiguration::Unknown;
 }
 
-FileName NimBuildConfiguration::cacheDirectory() const
+FilePath NimBuildConfiguration::cacheDirectory() const
 {
-    return buildDirectory().appendPath(QStringLiteral("nimcache"));
+    return buildDirectory().pathAppended("nimcache");
 }
 
-FileName NimBuildConfiguration::outFilePath() const
+FilePath NimBuildConfiguration::outFilePath() const
 {
     const NimCompilerBuildStep *step = nimCompilerBuildStep();
-    QTC_ASSERT(step, return FileName());
+    QTC_ASSERT(step, return FilePath());
     return step->outFilePath();
 }
 

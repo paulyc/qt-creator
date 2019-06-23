@@ -30,11 +30,16 @@ SOURCES += \
     rmqtoperation.cpp \
     rmtoolchainoperation.cpp \
     settings.cpp \
+    $$UTILS/environment.cpp \
     $$UTILS/fileutils.cpp \
     $$UTILS/hostosinfo.cpp \
+    $$UTILS/namevaluedictionary.cpp \
+    $$UTILS/namevalueitem.cpp \
     $$UTILS/persistentsettings.cpp \
     $$UTILS/qtcassert.cpp \
+    $$UTILS/qtcprocess.cpp \
     $$UTILS/savefile.cpp \
+    $$UTILS/stringutils.cpp
 
 HEADERS += \
     addabiflavor.h \
@@ -57,10 +62,14 @@ HEADERS += \
     rmqtoperation.h \
     rmtoolchainoperation.h \
     settings.h \
+    $$UTILS/environment.h \
     $$UTILS/fileutils.h \
     $$UTILS/hostosinfo.h \
+    $$UTILS/namevaluedictionary.h \
+    $$UTILS/namevalueitem.h \
     $$UTILS/persistentsettings.h \
     $$UTILS/qtcassert.h \
+    $$UTILS/qtcprocess.h \
     $$UTILS/savefile.h \
 
 macos {

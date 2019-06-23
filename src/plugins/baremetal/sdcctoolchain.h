@@ -36,7 +36,7 @@ class QTextEdit;
 QT_END_NAMESPACE
 
 namespace Utils {
-class FileName;
+class FilePath;
 class PathChooser;
 }
 
@@ -52,8 +52,6 @@ class SdccToolChain final : public ProjectExplorer::ToolChain
     Q_DECLARE_TR_FUNCTIONS(SdccToolChain)
 
 public:
-    QString typeDisplayName() const final;
-
     void setTargetAbi(const ProjectExplorer::Abi &abi);
     ProjectExplorer::Abi targetAbi() const final;
 
@@ -67,7 +65,7 @@ public:
 
     BuiltInHeaderPathsRunner createBuiltInHeaderPathsRunner() const final;
     ProjectExplorer::HeaderPaths builtInHeaderPaths(const QStringList &cxxFlags,
-                                                    const Utils::FileName &) const final;
+                                                    const Utils::FilePath &) const final;
     void addToEnvironment(Utils::Environment &env) const final;
     ProjectExplorer::IOutputParser *outputParser() const final;
 
@@ -78,21 +76,16 @@ public:
 
     bool operator ==(const ToolChain &other) const final;
 
-    void setCompilerCommand(const Utils::FileName &file);
-    Utils::FileName compilerCommand() const final;
+    void setCompilerCommand(const Utils::FilePath &file);
+    Utils::FilePath compilerCommand() const final;
 
-    QString makeCommand(const Utils::Environment &env) const final;
-
-    ToolChain *clone() const final;
-
-protected:
-    SdccToolChain(const SdccToolChain &tc) = default;
+    Utils::FilePath makeCommand(const Utils::Environment &env) const final;
 
 private:
-    explicit SdccToolChain(Detection d);
+    SdccToolChain();
 
     ProjectExplorer::Abi m_targetAbi;
-    Utils::FileName m_compilerCommand;
+    Utils::FilePath m_compilerCommand;
 
     friend class SdccToolChainFactory;
     friend class SdccToolChainConfigWidget;
@@ -105,15 +98,10 @@ class SdccToolChainFactory final : public ProjectExplorer::ToolChainFactory
     Q_OBJECT
 
 public:
-    explicit SdccToolChainFactory();
+    SdccToolChainFactory();
 
     QList<ProjectExplorer::ToolChain *> autoDetect(
             const QList<ProjectExplorer::ToolChain *> &alreadyKnown) final;
-
-    bool canCreate() final;
-    ProjectExplorer::ToolChain *create() final;
-
-    ProjectExplorer::ToolChain *restore(const QVariantMap &data) final;
 
 private:
     QList<ProjectExplorer::ToolChain *> autoDetectToolchains(const Candidates &candidates,

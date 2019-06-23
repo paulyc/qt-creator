@@ -193,7 +193,7 @@ void QtKitAspect::setup(ProjectExplorer::Kit *k)
         k->setValue(id(), candidates.first()->uniqueId());
 }
 
-QList<ProjectExplorer::Task> QtKitAspect::validate(const ProjectExplorer::Kit *k) const
+Tasks QtKitAspect::validate(const ProjectExplorer::Kit *k) const
 {
     QTC_ASSERT(QtVersionManager::isLoaded(), return { });
     BaseQtVersion *version = qtVersion(k);
@@ -229,7 +229,7 @@ ProjectExplorer::KitAspect::ItemList
 QtKitAspect::toUserOutput(const ProjectExplorer::Kit *k) const
 {
     BaseQtVersion *version = qtVersion(k);
-    return ItemList() << qMakePair(tr("Qt version"), version ? version->displayName() : tr("None"));
+    return {{tr("Qt version"), version ? version->displayName() : tr("None")}};
 }
 
 void QtKitAspect::addToEnvironment(const ProjectExplorer::Kit *k, Utils::Environment &env) const

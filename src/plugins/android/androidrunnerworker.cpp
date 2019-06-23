@@ -63,10 +63,10 @@ static const int GdbTempFileMaxCounter = 20;
 using namespace std;
 using namespace std::placeholders;
 using namespace ProjectExplorer;
+using namespace Utils;
 
 namespace Android {
 namespace Internal {
-
 
 static const QString pidScript = "pidof -s \"%1\"";
 static const QString pidScriptPreNougat = QStringLiteral("for p in /proc/[0-9]*; "
@@ -127,10 +127,10 @@ static void findProcessPID(QFutureInterface<qint64> &fi, QStringList selector,
     chrono::high_resolution_clock::time_point start = chrono::high_resolution_clock::now();
     do {
         QThread::msleep(200);
-        QString adbPath = AndroidConfigurations::currentConfig().adbToolPath().toString();
+        FilePath adbPath = AndroidConfigurations::currentConfig().adbToolPath();
         selector.append("shell");
         selector.append(preNougat ? pidScriptPreNougat : pidScript.arg(packageName));
-        const auto out = Utils::SynchronousProcess().runBlocking(adbPath, selector).allRawOutput();
+        const auto out = SynchronousProcess().runBlocking({adbPath, selector}).allRawOutput();
         if (preNougat) {
             processPID = extractPID(out, packageName);
         } else {
@@ -589,11 +589,11 @@ void AndroidRunnerWorker::handleJdbWaiting()
     }
     m_afterFinishAdbCommands.push_back(removeForward.join(' '));
 
-    auto jdbPath = AndroidConfigurations::currentConfig().openJDKLocation().appendPath("bin");
+    auto jdbPath = AndroidConfigurations::currentConfig().openJDKLocation().pathAppended("bin");
     if (Utils::HostOsInfo::isWindowsHost())
-        jdbPath.appendPath("jdb.exe");
+        jdbPath = jdbPath.pathAppended("jdb.exe");
     else
-        jdbPath.appendPath("jdb");
+        jdbPath = jdbPath.pathAppended("jdb");
 
     QStringList jdbArgs("-connect");
     jdbArgs << QString("com.sun.jdi.SocketAttach:hostname=localhost,port=%1")

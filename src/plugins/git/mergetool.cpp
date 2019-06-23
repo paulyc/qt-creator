@@ -61,8 +61,8 @@ bool MergeTool::start(const QString &workingDirectory, const QStringList &files)
     m_process->setWorkingDirectory(workingDirectory);
     m_process->setProcessEnvironment(env);
     m_process->setProcessChannelMode(QProcess::MergedChannels);
-    const Utils::FileName binary = GitPlugin::client()->vcsBinary();
-    VcsOutputWindow::appendCommand(workingDirectory, binary, arguments);
+    const Utils::FilePath binary = GitPlugin::client()->vcsBinary();
+    VcsOutputWindow::appendCommand(workingDirectory, {binary, arguments});
     m_process->start(binary.toString(), arguments);
     if (m_process->waitForStarted()) {
         connect(m_process, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),

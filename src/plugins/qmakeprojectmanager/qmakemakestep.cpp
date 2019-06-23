@@ -64,22 +64,18 @@ QmakeMakeStep::QmakeMakeStep(BuildStepList *bsl)
     }
 }
 
-QmakeBuildConfiguration *QmakeMakeStep::qmakeBuildConfiguration() const
-{
-    return static_cast<QmakeBuildConfiguration *>(buildConfiguration());
-}
-
 bool QmakeMakeStep::init()
 {
-    QmakeBuildConfiguration *bc = qmakeBuildConfiguration();
+    const auto bc = static_cast<QmakeBuildConfiguration *>(buildConfiguration());
     if (!bc)
         emit addTask(Task::buildConfigurationMissingTask());
 
-    const QString make = effectiveMakeCommand();
-    if (make.isEmpty())
+    const Utils::CommandLine unmodifiedMake = effectiveMakeCommand();
+    const Utils::FileName makeExecutable = unmodifiedMake.executable();
+    if (makeExecutable.isEmpty())
         emit addTask(makeCommandMissingTask());
 
-    if (!bc || make.isEmpty()) {
+    if (!bc || makeExecutable.isEmpty()) {
         emitFaultyConfigurationMessage();
         return false;
     }
@@ -96,16 +92,14 @@ bool QmakeMakeStep::init()
         workingDirectory = bc->subNodeBuild()->buildDir();
     else
         workingDirectory = bc->buildDirectory().toString();
-    pp->setWorkingDirectory(workingDirectory);
-
-    pp->setCommand(make);
+    pp->setWorkingDirectory(Utils::FilePath::fromString(workingDirectory));
 
     // If we are cleaning, then make can fail with a error code, but that doesn't mean
     // we should stop the clean queue
     // That is mostly so that rebuild works on a already clean project
     setIgnoreReturnValue(isClean());
 
-    QString args;
+    Utils::CommandLine makeCmd(makeExecutable);
 
     QmakeProjectManager::QmakeProFileNode *subProFile = bc->subNodeBuild();
     if (subProFile) {
@@ -121,22 +115,22 @@ bool QmakeMakeStep::init()
             else
                 makefile += ".Release";
         }
-        if (makefile != "Makefile") {
-            Utils::QtcProcess::addArg(&args, "-f");
-            Utils::QtcProcess::addArg(&args, makefile);
-        }
+
+        if (makefile != "Makefile")
+            makeCmd.addArgs({"-f", makefile});
+
         m_makeFileToCheck = QDir(workingDirectory).filePath(makefile);
     } else {
         if (!bc->makefile().isEmpty()) {
-            Utils::QtcProcess::addArg(&args, "-f");
-            Utils::QtcProcess::addArg(&args, bc->makefile());
+            makeCmd.addArgs({"-f", bc->makefile()});
             m_makeFileToCheck = QDir(workingDirectory).filePath(bc->makefile());
         } else {
             m_makeFileToCheck = QDir(workingDirectory).filePath("Makefile");
         }
     }
 
-    Utils::QtcProcess::addArgs(&args, allArguments());
+    makeCmd.addArgs(unmodifiedMake.arguments(), Utils::CommandLine::Raw);
+
     if (bc->fileNodeBuild() && subProFile) {
         QString objectsDir = subProFile->objectsDirectory();
         if (objectsDir.isEmpty()) {
@@ -148,7 +142,8 @@ bool QmakeMakeStep::init()
                     objectsDir += "/release";
             }
         }
-        QString relObjectsDir = QDir(pp->workingDirectory()).relativeFilePath(objectsDir);
+        QString relObjectsDir = QDir(pp->workingDirectory().toString())
+                .relativeFilePath(objectsDir);
         if (relObjectsDir == ".")
             relObjectsDir.clear();
         if (!relObjectsDir.isEmpty())
@@ -156,10 +151,11 @@ bool QmakeMakeStep::init()
         QString objectFile = relObjectsDir +
                 bc->fileNodeBuild()->filePath().toFileInfo().baseName() +
                 subProFile->objectExtension();
-        Utils::QtcProcess::addArg(&args, objectFile);
+        makeCmd.addArg(objectFile);
     }
+
     pp->setEnvironment(environment(bc));
-    pp->setArguments(args);
+    pp->setCommandLine(makeCmd);
     pp->resolveAll();
 
     setOutputParser(new ProjectExplorer::GnuMakeParser());
@@ -213,7 +209,7 @@ void QmakeMakeStep::finish(bool success)
             && QmakeSettings::warnAgainstUnalignedBuildDir()) {
         const QString msg = tr("The build directory is not at the same level as the source "
                                "directory, which could be the reason for the build failure.");
-        emit addTask(Task(Task::Warning, msg, Utils::FileName(), -1,
+        emit addTask(Task(Task::Warning, msg, Utils::FilePath(), -1,
                           ProjectExplorer::Constants::TASK_CATEGORY_BUILDSYSTEM));
     }
     MakeStep::finish(success);

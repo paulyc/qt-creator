@@ -70,6 +70,7 @@ public:
     bool addFiles(const QStringList &filePaths, QStringList *notAdded = nullptr) override;
     bool removeFiles(const QStringList &filePaths, QStringList *notRemoved = nullptr) override;
     bool renameFile(const QString &filePath, const QString &newFilePath) override;
+    void build() override;
     QStringList targetApplications() const override;
 
     QString buildKey() const override;
@@ -88,7 +89,7 @@ private:
 class QbsProjectNode : public ProjectExplorer::ProjectNode
 {
 public:
-    explicit QbsProjectNode(const Utils::FileName &projectDirectory);
+    explicit QbsProjectNode(const Utils::FilePath &projectDirectory);
 
     virtual QbsProject *project() const;
     const qbs::Project qbsProject() const;

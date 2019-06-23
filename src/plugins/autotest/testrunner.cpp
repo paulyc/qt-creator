@@ -65,6 +65,8 @@
 
 #include <utils/algorithm.h>
 
+using namespace Utils;
+
 namespace Autotest {
 namespace Internal {
 
@@ -150,7 +152,7 @@ static QString constructOmittedDetailsString(const QStringList &omitted)
                           "configuration page for \"%1\":") + '\n' + omitted.join('\n');
 }
 
-static QString constructOmittedVariablesDetailsString(const QList<Utils::EnvironmentItem> &diff)
+static QString constructOmittedVariablesDetailsString(const Utils::EnvironmentItems &diff)
 {
     auto removedVars = Utils::transform<QStringList>(diff, [](const Utils::EnvironmentItem &it) {
         return it.name;
@@ -204,10 +206,10 @@ void TestRunner::scheduleNext()
     m_currentProcess->setWorkingDirectory(m_currentConfig->workingDirectory());
     const Utils::Environment &original = m_currentConfig->environment();
     Utils::Environment environment =  m_currentConfig->filteredEnvironment(original);
-    const QList<Utils::EnvironmentItem> removedVariables
-            = Utils::filtered(original.diff(environment), [](const Utils::EnvironmentItem &it) {
-        return it.operation == Utils::EnvironmentItem::Unset;
-    });
+    const Utils::EnvironmentItems removedVariables = Utils::filtered(
+        original.diff(environment), [](const Utils::EnvironmentItem &it) {
+            return it.operation == Utils::EnvironmentItem::Unset;
+        });
     if (!removedVariables.isEmpty()) {
         const QString &details = constructOmittedVariablesDetailsString(removedVariables)
                 .arg(m_currentConfig->displayName());
@@ -270,6 +272,9 @@ void TestRunner::onProcessFinished()
     const int disabled = m_currentOutputReader->disabledTests();
     if (disabled > 0)
         emit hadDisabledTests(disabled);
+    if (m_currentOutputReader->hasSummary())
+        emit reportSummary(m_currentOutputReader->id(), m_currentOutputReader->summary());
+
     resetInternalPointers();
 
     if (!m_fakeFutureInterface) {
@@ -387,7 +392,7 @@ static ProjectExplorer::RunConfiguration *getRunConfiguration(const QString &bui
         runConfig = Utils::findOr(runConfigurations, nullptr, [&dName, &exe] (const RunConfiguration *rc) {
             if (rc->displayName() != dName)
                 return false;
-            return rc->runnable().executable == exe;
+            return rc->runnable().executable.toString() == exe;
         });
         if (runConfig && dialog.rememberChoice())
             AutotestPlugin::cacheRunConfigChoice(buildTargetKey, ChoicePair(dName, exe));
@@ -547,7 +552,7 @@ void TestRunner::debugTests()
 
     QStringList omitted;
     ProjectExplorer::Runnable inferior = config->runnable();
-    inferior.executable = commandFilePath;
+    inferior.executable = FilePath::fromString(commandFilePath);
 
     const QStringList args = config->argumentsForTestRunner(&omitted);
     inferior.commandLineArguments = Utils::QtcProcess::joinArgs(args);
@@ -557,10 +562,10 @@ void TestRunner::debugTests()
     }
     Utils::Environment original(inferior.environment);
     inferior.environment = config->filteredEnvironment(original);
-    const QList<Utils::EnvironmentItem> removedVariables
-            = Utils::filtered(original.diff(inferior.environment), [](const Utils::EnvironmentItem &it) {
-        return it.operation == Utils::EnvironmentItem::Unset;
-    });
+    const Utils::EnvironmentItems removedVariables = Utils::filtered(
+        original.diff(inferior.environment), [](const Utils::EnvironmentItem &it) {
+            return it.operation == Utils::EnvironmentItem::Unset;
+        });
     if (!removedVariables.isEmpty()) {
         const QString &details = constructOmittedVariablesDetailsString(removedVariables)
                 .arg(config->displayName());
@@ -586,7 +591,7 @@ void TestRunner::debugTests()
 
     if (useOutputProcessor) {
         TestOutputReader *outputreader = config->outputReader(*futureInterface, nullptr);
-        outputreader->setId(inferior.executable);
+        outputreader->setId(inferior.executable.toString());
         connect(outputreader, &TestOutputReader::newOutputAvailable,
                 TestResultsPane::instance(), &TestResultsPane::addOutput);
         connect(runControl, &ProjectExplorer::RunControl::appendMessage,
@@ -752,7 +757,7 @@ void RunConfigurationSelectionDialog::populate()
         if (auto target = project->activeTarget()) {
             for (ProjectExplorer::RunConfiguration *rc : target->runConfigurations()) {
                 auto runnable = rc->runnable();
-                const QStringList rcDetails = { runnable.executable,
+                const QStringList rcDetails = { runnable.executable.toString(),
                                                 runnable.commandLineArguments,
                                                 runnable.workingDirectory };
                 m_rcCombo->addItem(rc->displayName(), rcDetails);

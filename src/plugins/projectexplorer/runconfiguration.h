@@ -160,6 +160,10 @@ public:
     bool fromMap(const QVariantMap &map) override;
     QVariantMap toMap() const override;
 
+    using CommandLineGetter = std::function<Utils::CommandLine()>;
+    void setCommandLineGetter(const CommandLineGetter &cmdGetter);
+    Utils::CommandLine commandLine() const;
+
     virtual Runnable runnable() const;
 
     // Return a handle to the build system target that created this run configuration.
@@ -210,6 +214,7 @@ private:
     QString m_buildKey;
     bool m_isEnabled = false;
     std::function<Utils::OutputFormatter *(Project *)> m_outputFormatterCreator;
+    CommandLineGetter m_commandLineGetter;
 };
 
 class RunConfigurationCreationInfo
@@ -223,7 +228,7 @@ public:
     QString buildKey;
     QString displayName;
     QString displayNameUniquifier;
-    Utils::FileName projectFilePath;
+    Utils::FilePath projectFilePath;
     CreationMode creationMode = AlwaysCreate;
     bool useTerminal = false;
 };

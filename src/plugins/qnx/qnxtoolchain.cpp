@@ -44,16 +44,16 @@ namespace Internal {
 static const char CompilerSdpPath[] = "Qnx.QnxToolChain.NDKPath";
 static const char CpuDirKey[] = "Qnx.QnxToolChain.CpuDir";
 
-static QList<Abi> detectTargetAbis(const FileName &sdpPath)
+static Abis detectTargetAbis(const FilePath &sdpPath)
 {
-    QList<Abi> result;
-    FileName qnxTarget;
+    Abis result;
+    FilePath qnxTarget;
 
     if (!sdpPath.fileName().isEmpty()) {
-        QList<Utils::EnvironmentItem> environment = QnxUtils::qnxEnvironment(sdpPath.toString());
+        Utils::EnvironmentItems environment = QnxUtils::qnxEnvironment(sdpPath.toString());
         foreach (const Utils::EnvironmentItem &item, environment) {
-            if (item.name == QLatin1Literal("QNX_TARGET"))
-                qnxTarget = FileName::fromString(item.value);
+            if (item.name == QLatin1String("QNX_TARGET"))
+                qnxTarget = FilePath::fromString(item.value);
         }
     }
 
@@ -72,12 +72,11 @@ static QList<Abi> detectTargetAbis(const FileName &sdpPath)
     return result;
 }
 
-static void setQnxEnvironment(Environment &env, const QList<EnvironmentItem> &qnxEnv)
+static void setQnxEnvironment(Environment &env, const EnvironmentItems &qnxEnv)
 {
     // We only need to set QNX_HOST and QNX_TARGET needed when running qcc
     foreach (const EnvironmentItem &item, qnxEnv) {
-        if (item.name == QLatin1String("QNX_HOST") ||
-                item.name == QLatin1String("QNX_TARGET") )
+        if (item.name == QLatin1String("QNX_HOST") || item.name == QLatin1String("QNX_TARGET"))
             env.set(item.name, item.value);
     }
 }
@@ -100,15 +99,11 @@ static QStringList reinterpretOptions(const QStringList &args)
     return arguments;
 }
 
-QnxToolChain::QnxToolChain(ToolChain::Detection d)
-    : GccToolChain(Constants::QNX_TOOLCHAIN_ID, d)
+QnxToolChain::QnxToolChain()
+    : GccToolChain(Constants::QNX_TOOLCHAIN_ID)
 {
     setOptionsReinterpreter(&reinterpretOptions);
-}
-
-QString QnxToolChain::typeDisplayName() const
-{
-    return QnxToolChainFactory::tr("QCC");
+    setTypeDisplayName(QnxToolChainFactory::tr("QCC"));
 }
 
 std::unique_ptr<ToolChainConfigWidget> QnxToolChain::createConfigurationWidget()
@@ -124,15 +119,14 @@ void QnxToolChain::addToEnvironment(Environment &env) const
     GccToolChain::addToEnvironment(env);
 }
 
-FileNameList QnxToolChain::suggestedMkspecList() const
+QStringList QnxToolChain::suggestedMkspecList() const
 {
-    FileNameList mkspecList;
-    mkspecList << FileName::fromLatin1("qnx-armle-v7-qcc");
-    mkspecList << FileName::fromLatin1("qnx-x86-qcc");
-    mkspecList << FileName::fromLatin1("qnx-aarch64le-qcc");
-    mkspecList << FileName::fromLatin1("qnx-x86-64-qcc");
-
-    return mkspecList;
+    return {
+        "qnx-armle-v7-qcc",
+        "qnx-x86-qcc",
+        "qnx-aarch64le-qcc",
+        "qnx-x86-64-qcc"
+    };
 }
 
 QVariantMap QnxToolChain::toMap() const
@@ -186,7 +180,7 @@ void QnxToolChain::setCpuDir(const QString &cpuDir)
 
 GccToolChain::DetectedAbisResult QnxToolChain::detectSupportedAbis() const
 {
-    return detectTargetAbis(FileName::fromString(m_sdpPath));
+    return detectTargetAbis(FilePath::fromString(m_sdpPath));
 }
 
 bool QnxToolChain::operator ==(const ToolChain &other) const
@@ -208,6 +202,8 @@ QnxToolChainFactory::QnxToolChainFactory()
     setDisplayName(tr("QCC"));
     setSupportedToolChainType(Constants::QNX_TOOLCHAIN_ID);
     setSupportedLanguages({ProjectExplorer::Constants::CXX_LANGUAGE_ID});
+    setToolchainConstructor([] { return new QnxToolChain; });
+    setUserCreatable(true);
 }
 
 QList<ProjectExplorer::ToolChain *> QnxToolChainFactory::autoDetect(
@@ -219,26 +215,6 @@ QList<ProjectExplorer::ToolChain *> QnxToolChainFactory::autoDetect(
     foreach (QnxConfiguration *configuration, configurations)
         tcs += configuration->autoDetect(alreadyKnown);
     return tcs;
-}
-
-ToolChain *QnxToolChainFactory::restore(const QVariantMap &data)
-{
-    auto tc = new QnxToolChain(ToolChain::ManualDetection);
-    if (tc->fromMap(data))
-        return tc;
-
-    delete tc;
-    return nullptr;
-}
-
-bool QnxToolChainFactory::canCreate()
-{
-    return true;
-}
-
-ToolChain *QnxToolChainFactory::create()
-{
-    return new QnxToolChain(ToolChain::ManualDetection);
 }
 
 //---------------------------------------------------------------------------------
@@ -261,7 +237,7 @@ QnxToolChainConfigWidget::QnxToolChainConfigWidget(QnxToolChain *tc)
     m_sdpPath->setPath(tc->sdpPath());
     m_sdpPath->setEnabled(!tc->isAutoDetected());
 
-    QList<Abi> abiList = detectTargetAbis(m_sdpPath->fileName());
+    const Abis abiList = detectTargetAbis(m_sdpPath->fileName());
     m_abiWidget->setAbis(abiList, tc->targetAbi());
     m_abiWidget->setEnabled(!tc->isAutoDetected() && !abiList.isEmpty());
 
@@ -313,9 +289,9 @@ bool QnxToolChainConfigWidget::isDirtyImpl() const
 
 void QnxToolChainConfigWidget::handleSdpPathChange()
 {
-    Abi currentAbi = m_abiWidget->currentAbi();
-    bool customAbi = m_abiWidget->isCustomAbi();
-    QList<Abi> abiList = detectTargetAbis(m_sdpPath->fileName());
+    const Abi currentAbi = m_abiWidget->currentAbi();
+    const bool customAbi = m_abiWidget->isCustomAbi();
+    const Abis abiList = detectTargetAbis(m_sdpPath->fileName());
 
     m_abiWidget->setEnabled(!abiList.isEmpty());
 

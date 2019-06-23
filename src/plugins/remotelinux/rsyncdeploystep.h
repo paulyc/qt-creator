@@ -51,16 +51,9 @@ public:
     static Core::Id stepId();
     static QString displayName();
 
-    static RsyncCommandLine rsyncCommand(const QSsh::SshConnection &sshConnection);
-
-private:
-    AbstractRemoteLinuxDeployService *deployService() const override;
-    void doRun() override;
-
-    CheckResult initInternal() override;
-
-    class RsyncDeployStepPrivate;
-    RsyncDeployStepPrivate * const d;
+    static QString defaultFlags();
+    static RsyncCommandLine rsyncCommand(const QSsh::SshConnection &sshConnection,
+                                         const QString &flags);
 };
 
 } // namespace RemoteLinux

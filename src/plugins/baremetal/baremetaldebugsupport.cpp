@@ -48,6 +48,7 @@
 
 using namespace Debugger;
 using namespace ProjectExplorer;
+using namespace Utils;
 
 namespace BareMetal {
 namespace Internal {
@@ -72,11 +73,9 @@ BareMetalDebugSupport::BareMetalDebugSupport(RunControl *runControl)
 
     if (p->startupMode() == GdbServerProvider::StartupOnNetwork) {
         Runnable r;
-        r.executable = p->executable();
-        // We need to wrap the command arguments depending on a host OS,
-        // as the bare metal's GDB servers are launched on a host,
-        // but not on a target.
-        r.commandLineArguments = Utils::QtcProcess::joinArgs(p->arguments(), Utils::HostOsInfo::hostOs());
+        r.setCommandLine(p->command());
+        // Command arguments are in host OS style as the bare metal's GDB servers are launched
+        // on the host, not on that target.
         m_gdbServer = new SimpleTargetRunner(runControl);
         m_gdbServer->setRunnable(r);
         addStartDependency(m_gdbServer);
@@ -88,13 +87,13 @@ void BareMetalDebugSupport::start()
     const auto exeAspect = runControl()->aspect<ExecutableAspect>();
     QTC_ASSERT(exeAspect, reportFailure(); return);
 
-    const QString bin = exeAspect->executable().toString();
+    const FilePath bin = exeAspect->executable();
     if (bin.isEmpty()) {
         reportFailure(tr("Cannot debug: Local executable is not set."));
         return;
     }
-    if (!QFile::exists(bin)) {
-        reportFailure(tr("Cannot debug: Could not find executable for \"%1\".").arg(bin));
+    if (!bin.exists()) {
+        reportFailure(tr("Cannot debug: Could not find executable for \"%1\".").arg(bin.toString()));
         return;
     }
 
@@ -133,6 +132,7 @@ void BareMetalDebugSupport::start()
     setCommandsForReset(p->resetCommands());
     setRemoteChannel(p->channel());
     setUseContinueInsteadOfRun(true);
+    setUseExtendedRemote(p->useExtendedRemote());
 
     DebuggerRunTool::start();
 }

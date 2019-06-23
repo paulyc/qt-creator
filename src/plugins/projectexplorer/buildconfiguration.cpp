@@ -102,19 +102,19 @@ BuildConfiguration::BuildConfiguration(Target *target, Core::Id id)
     });
 }
 
-Utils::FileName BuildConfiguration::buildDirectory() const
+Utils::FilePath BuildConfiguration::buildDirectory() const
 {
-    QString path = environment().expandVariables(m_buildDirectoryAspect->value());
+    QString path = environment().expandVariables(m_buildDirectoryAspect->value().trimmed());
     path = QDir::cleanPath(macroExpander()->expand(path));
-    return Utils::FileName::fromString(QDir::cleanPath(QDir(target()->project()->projectDirectory().toString()).absoluteFilePath(path)));
+    return Utils::FilePath::fromString(QDir::cleanPath(QDir(target()->project()->projectDirectory().toString()).absoluteFilePath(path)));
 }
 
-Utils::FileName BuildConfiguration::rawBuildDirectory() const
+Utils::FilePath BuildConfiguration::rawBuildDirectory() const
 {
     return m_buildDirectoryAspect->fileName();
 }
 
-void BuildConfiguration::setBuildDirectory(const Utils::FileName &dir)
+void BuildConfiguration::setBuildDirectory(const Utils::FilePath &dir)
 {
     if (dir == m_buildDirectoryAspect->fileName())
         return;
@@ -319,12 +319,12 @@ bool BuildConfiguration::useSystemEnvironment() const
     return !m_clearSystemEnvironment;
 }
 
-QList<Utils::EnvironmentItem> BuildConfiguration::userEnvironmentChanges() const
+Utils::EnvironmentItems BuildConfiguration::userEnvironmentChanges() const
 {
     return m_userEnvironmentChanges;
 }
 
-void BuildConfiguration::setUserEnvironmentChanges(const QList<Utils::EnvironmentItem> &diff)
+void BuildConfiguration::setUserEnvironmentChanges(const Utils::EnvironmentItems &diff)
 {
     if (m_userEnvironmentChanges == diff)
         return;
@@ -382,7 +382,7 @@ void BuildConfiguration::prependCompilerPathToEnvironment(Kit *k, Utils::Environ
     if (!tc)
         return;
 
-    const Utils::FileName compilerDir = tc->compilerCommand().parentDir();
+    const Utils::FilePath compilerDir = tc->compilerCommand().parentDir();
     if (!compilerDir.isEmpty())
         env.prependOrSetPath(compilerDir.toString());
 }
@@ -404,7 +404,7 @@ BuildConfigurationFactory::~BuildConfigurationFactory()
     g_buildConfigurationFactories.removeOne(this);
 }
 
-const QList<Task> BuildConfigurationFactory::reportIssues(ProjectExplorer::Kit *kit, const QString &projectPath,
+const Tasks BuildConfigurationFactory::reportIssues(ProjectExplorer::Kit *kit, const QString &projectPath,
                                                           const QString &buildDir) const
 {
     if (m_issueReporter)

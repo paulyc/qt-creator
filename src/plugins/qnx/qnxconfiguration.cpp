@@ -69,7 +69,7 @@ const QLatin1String SdpEnvFileKey("NDKEnvFile");
 
 QnxConfiguration::QnxConfiguration() = default;
 
-QnxConfiguration::QnxConfiguration(const FileName &sdpEnvFile)
+QnxConfiguration::QnxConfiguration(const FilePath &sdpEnvFile)
 {
     setDefaultConfiguration(sdpEnvFile);
     readInformation();
@@ -83,31 +83,31 @@ QnxConfiguration::QnxConfiguration(const QVariantMap &data)
 
     m_version = QnxVersionNumber(data.value(QNXVersionKey).toString());
 
-    setDefaultConfiguration(FileName::fromString(envFilePath));
+    setDefaultConfiguration(FilePath::fromString(envFilePath));
     readInformation();
 }
 
-FileName QnxConfiguration::envFile() const
+FilePath QnxConfiguration::envFile() const
 {
     return m_envFile;
 }
 
-FileName QnxConfiguration::qnxTarget() const
+FilePath QnxConfiguration::qnxTarget() const
 {
     return m_qnxTarget;
 }
 
-FileName QnxConfiguration::qnxHost() const
+FilePath QnxConfiguration::qnxHost() const
 {
     return m_qnxHost;
 }
 
-FileName QnxConfiguration::qccCompilerPath() const
+FilePath QnxConfiguration::qccCompilerPath() const
 {
     return m_qccCompiler;
 }
 
-QList<EnvironmentItem> QnxConfiguration::qnxEnv() const
+EnvironmentItems QnxConfiguration::qnxEnv() const
 {
     return m_qnxEnv;
 }
@@ -209,7 +209,7 @@ bool QnxConfiguration::canCreateKits() const
                         [this](const Target &target) -> bool { return qnxQtVersion(target); });
 }
 
-FileName QnxConfiguration::sdpPath() const
+FilePath QnxConfiguration::sdpPath() const
 {
     return envFile().parentDir();
 }
@@ -220,7 +220,7 @@ QnxQtVersion *QnxConfiguration::qnxQtVersion(const Target &target) const
              QtVersionManager::instance()->versions(Utils::equal(&BaseQtVersion::type,
                                                                          QString::fromLatin1(Constants::QNX_QNX_QT)))) {
         auto qnxQt = dynamic_cast<QnxQtVersion *>(version);
-        if (qnxQt && FileName::fromString(qnxQt->sdpPath()) == sdpPath()) {
+        if (qnxQt && FilePath::fromString(qnxQt->sdpPath()) == sdpPath()) {
             foreach (const Abi &qtAbi, version->qtAbis()) {
                 if ((qtAbi == target.m_abi) && (qnxQt->cpuDir() == target.cpuDir()))
                     return qnxQt;
@@ -265,7 +265,8 @@ QVariant QnxConfiguration::createDebugger(const Target &target)
 
 QnxToolChain *QnxConfiguration::createToolChain(const Target &target)
 {
-    auto toolChain = new QnxToolChain(ToolChain::AutoDetection);
+    auto toolChain = new QnxToolChain;
+    toolChain->setDetection(ToolChain::AutoDetection);
     toolChain->setLanguage(ProjectExplorer::Constants::CXX_LANGUAGE_ID);
     toolChain->setTargetAbi(target.m_abi);
     toolChain->setDisplayName(
@@ -353,14 +354,14 @@ void QnxConfiguration::setVersion(const QnxVersionNumber &version)
 
 void QnxConfiguration::readInformation()
 {
-    QString qConfigPath = FileName(m_qnxConfiguration).appendPath("qconfig").toString();
+    const QString qConfigPath = m_qnxConfiguration.pathAppended("qconfig").toString();
     QList <ConfigInstallInformation> installInfoList = QnxUtils::installedConfigs(qConfigPath);
     if (installInfoList.isEmpty())
         return;
 
     foreach (const ConfigInstallInformation &info, installInfoList) {
-        if (m_qnxHost == FileName::fromString(info.host)
-                && m_qnxTarget == FileName::fromString(info.target)) {
+        if (m_qnxHost == FilePath::fromString(info.host)
+                && m_qnxTarget == FilePath::fromString(info.target)) {
             m_configName = info.name;
             setVersion(QnxVersionNumber(info.version));
             break;
@@ -368,21 +369,21 @@ void QnxConfiguration::readInformation()
     }
 }
 
-void QnxConfiguration::setDefaultConfiguration(const Utils::FileName &envScript)
+void QnxConfiguration::setDefaultConfiguration(const Utils::FilePath &envScript)
 {
     QTC_ASSERT(!envScript.isEmpty(), return);
     m_envFile = envScript;
     m_qnxEnv = QnxUtils::qnxEnvironmentFromEnvFile(m_envFile.toString());
     foreach (const EnvironmentItem &item, m_qnxEnv) {
         if (item.name == QLatin1String("QNX_CONFIGURATION"))
-            m_qnxConfiguration = FileName::fromString(item.value);
+            m_qnxConfiguration = FilePath::fromString(item.value);
         else if (item.name == QLatin1String("QNX_TARGET"))
-            m_qnxTarget = FileName::fromString(item.value);
+            m_qnxTarget = FilePath::fromString(item.value);
         else if (item.name == QLatin1String("QNX_HOST"))
-            m_qnxHost = FileName::fromString(item.value);
+            m_qnxHost = FilePath::fromString(item.value);
     }
 
-    FileName qccPath = FileName::fromString(HostOsInfo::withExecutableSuffix(
+    FilePath qccPath = FilePath::fromString(HostOsInfo::withExecutableSuffix(
                                                 m_qnxHost.toString() + QLatin1String("/usr/bin/qcc")));
 
     if (qccPath.exists())
@@ -400,7 +401,7 @@ void QnxConfiguration::setDefaultConfiguration(const Utils::FileName &envScript)
 }
 
 const QnxConfiguration::Target *QnxConfiguration::findTargetByDebuggerPath(
-        const FileName &path) const
+        const FilePath &path) const
 {
     auto it = std::find_if(m_targets.begin(), m_targets.end(),
                            [path](const Target &target) { return target.m_debuggerPath == path; });
@@ -417,13 +418,13 @@ void QnxConfiguration::updateTargets()
 
 void QnxConfiguration::assignDebuggersToTargets()
 {
-    QDir hostUsrBinDir(FileName(m_qnxHost).appendPath("usr/bin").toString());
+    const QDir hostUsrBinDir(m_qnxHost.pathAppended("usr/bin").toString());
     QStringList debuggerNames = hostUsrBinDir.entryList(
                 QStringList(HostOsInfo::withExecutableSuffix(QLatin1String("nto*-gdb"))),
                 QDir::Files);
     foreach (const QString &debuggerName, debuggerNames) {
-        FileName debuggerPath = FileName::fromString(hostUsrBinDir.path())
-                .appendPath(debuggerName);
+        const FilePath debuggerPath = FilePath::fromString(hostUsrBinDir.path())
+                .pathAppended(debuggerName);
         DebuggerItem item;
         item.setCommand(debuggerPath);
         item.reinitializeFromFile();

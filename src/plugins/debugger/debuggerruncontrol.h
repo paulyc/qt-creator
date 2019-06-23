@@ -72,7 +72,7 @@ public:
     static void setBreakOnMainNextTime();
 
     void setInferior(const ProjectExplorer::Runnable &runnable);
-    void setInferiorExecutable(const QString &executable);
+    void setInferiorExecutable(const Utils::FilePath &executable);
     void setInferiorEnvironment(const Utils::Environment &env); // Used by GammaRay plugin
     void setInferiorDevice(ProjectExplorer::IDevice::ConstPtr device); // Used by cdbengine
     void setRunControlName(const QString &name);
@@ -84,7 +84,7 @@ public:
     void setCrashParameter(const QString &event);
 
     void addExpectedSignal(const QString &signal);
-    void addSearchDirectory(const Utils::FileName &dir);
+    void addSearchDirectory(const Utils::FilePath &dir);
 
     void setStartMode(DebuggerStartMode startMode);
     void setCloseMode(DebuggerCloseMode closeMode);
@@ -92,8 +92,8 @@ public:
     void setAttachPid(Utils::ProcessHandle pid);
     void setAttachPid(qint64 pid);
 
-    void setSysRoot(const Utils::FileName &sysRoot);
-    void setSymbolFile(const QString &symbolFile);
+    void setSysRoot(const Utils::FilePath &sysRoot);
+    void setSymbolFile(const Utils::FilePath &symbolFile);
     void setRemoteChannel(const QString &channel);
     void setRemoteChannel(const QString &host, int port);
     void setRemoteChannel(const QUrl &url);
@@ -110,7 +110,7 @@ public:
     void setCommandsAfterConnect(const QString &commands);
     void setCommandsForReset(const QString &commands);
 
-    void setServerStartScript(const QString &serverStartScript);
+    void setServerStartScript(const Utils::FilePath &serverStartScript);
     void setDebugInfoLocation(const QString &debugInfoLocation);
 
     void setQmlServer(const QUrl &qmlServer);
@@ -155,12 +155,9 @@ public:
     Utils::Port qmlServerPort() const;
     QUrl qmlServer() const;
 
-    void setDevice(ProjectExplorer::IDevice::ConstPtr device);
-
 private:
     bool m_useGdbServer = false;
     bool m_useQmlServer = false;
-    ProjectExplorer::IDevice::ConstPtr m_device;
 };
 
 class DEBUGGER_EXPORT GdbServerRunner : public ProjectExplorer::SimpleTargetRunner

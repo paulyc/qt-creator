@@ -353,7 +353,7 @@ QString ClearCasePlugin::ccManagesDirectory(const QString &directory) const
     foreach (const QString &relativeVobDir, vobs) {
         const QString vobPath = QDir::cleanPath(rootDir + QDir::fromNativeSeparators(relativeVobDir));
         const bool isManaged = (vobPath == directory)
-                || FileName::fromString(directory).isChildOf(FileName::fromString(vobPath));
+                || FilePath::fromString(directory).isChildOf(FilePath::fromString(vobPath));
         if (isManaged)
             return vobPath;
     }
@@ -390,7 +390,7 @@ QString ClearCasePlugin::findTopLevel(const QString &directory) const
     // Do not check again if we've already tested that the dir is managed,
     // or if it is a child of a managed dir (top level).
     if ((directory == m_topLevel) ||
-           FileName::fromString(directory).isChildOf(FileName::fromString(m_topLevel)))
+           FilePath::fromString(directory).isChildOf(FilePath::fromString(m_topLevel)))
         return m_topLevel;
 
     return ccManagesDirectory(directory);
@@ -1452,8 +1452,9 @@ ClearCasePlugin::runCleartool(const QString &workingDir,
     }
 
     const SynchronousProcessResponse sp_resp =
-            VcsBasePlugin::runVcs(workingDir, FileName::fromUserInput(executable),
-                                  arguments, timeOutS,
+            VcsBasePlugin::runVcs(workingDir,
+                                  {FilePath::fromUserInput(executable), arguments},
+                                  timeOutS,
                                   flags, outputCodec);
 
     response.error = sp_resp.result != SynchronousProcessResponse::Finished;
@@ -2027,7 +2028,7 @@ void ClearCasePlugin::updateIndex()
         return;
     m_checkInAllAction->setEnabled(false);
     m_statusMap->clear();
-    QFuture<void> result = Utils::runAsync(sync, transform(project->files(Project::SourceFiles), &FileName::toString));
+    QFuture<void> result = Utils::runAsync(sync, transform(project->files(Project::SourceFiles), &FilePath::toString));
     if (!m_settings.disableIndexer)
         ProgressManager::addTask(result, tr("Updating ClearCase Index"), ClearCase::Constants::TASK_INDEX);
 }
@@ -2140,15 +2141,15 @@ void ClearCasePlugin::diffGraphical(const QString &file1, const QString &file2)
 QString ClearCasePlugin::runExtDiff(const QString &workingDir, const QStringList &arguments,
                                     int timeOutS, QTextCodec *outputCodec)
 {
-    const QString executable(QLatin1String("diff"));
-    QStringList args(m_settings.diffArgs.split(QLatin1Char(' '), QString::SkipEmptyParts));
-    args << arguments;
+    CommandLine diff(FilePath::fromString("diff"));
+    diff.addArgs(m_settings.diffArgs.split(' ', QString::SkipEmptyParts));
+    diff.addArgs(arguments);
 
     SynchronousProcess process;
     process.setTimeoutS(timeOutS);
     process.setWorkingDirectory(workingDir);
     process.setCodec(outputCodec ? outputCodec : QTextCodec::codecForName("UTF-8"));
-    SynchronousProcessResponse response = process.run(executable, args);
+    SynchronousProcessResponse response = process.run(diff);
     if (response.result != SynchronousProcessResponse::Finished)
         return QString();
     return response.allOutput();

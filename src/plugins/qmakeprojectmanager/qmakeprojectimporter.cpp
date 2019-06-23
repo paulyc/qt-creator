@@ -64,10 +64,10 @@ namespace {
 struct DirectoryData
 {
     QString makefile;
-    Utils::FileName buildDirectory;
-    Utils::FileName canonicalQmakeBinary;
+    Utils::FilePath buildDirectory;
+    Utils::FilePath canonicalQmakeBinary;
     QtProjectImporter::QtVersionData qtVersionData;
-    FileName parsedSpec;
+    QString parsedSpec;
     BaseQtVersion::QmakeBuildConfigs buildConfig;
     QString additionalArguments;
     QMakeStepConfig config;
@@ -83,7 +83,7 @@ namespace Internal {
 const Core::Id QT_IS_TEMPORARY("Qmake.TempQt");
 const char IOSQT[] = "Qt4ProjectManager.QtVersion.Ios"; // ugly
 
-QmakeProjectImporter::QmakeProjectImporter(const FileName &path) :
+QmakeProjectImporter::QmakeProjectImporter(const FilePath &path) :
     QtProjectImporter(path)
 { }
 
@@ -109,7 +109,7 @@ QStringList QmakeProjectImporter::importCandidates()
     return candidates;
 }
 
-QList<void *> QmakeProjectImporter::examineDirectory(const FileName &importPath) const
+QList<void *> QmakeProjectImporter::examineDirectory(const FilePath &importPath) const
 {
     QList<void *> result;
     const QLoggingCategory &logs = MakeFileParse::logging();
@@ -136,7 +136,7 @@ QList<void *> QmakeProjectImporter::examineDirectory(const FileName &importPath)
         }
 
         QFileInfo qmakeFi = parse.qmakePath().toFileInfo();
-        data->canonicalQmakeBinary = FileName::fromString(qmakeFi.canonicalFilePath());
+        data->canonicalQmakeBinary = FilePath::fromString(qmakeFi.canonicalFilePath());
         if (data->canonicalQmakeBinary.isEmpty()) {
             qCDebug(logs) << "  " << parse.qmakePath() << "doesn't exist anymore";
             continue;
@@ -164,7 +164,7 @@ QList<void *> QmakeProjectImporter::examineDirectory(const FileName &importPath)
         }
 
         if (version->type() == QtSupport::Constants::DESKTOPQT) {
-            const QList<ProjectExplorer::Abi> abis = version->qtAbis();
+            const ProjectExplorer::Abis abis = version->qtAbis();
             if (!abis.isEmpty()) {
                 ProjectExplorer::Abi abi = abis.first();
                 if (abi.os() == ProjectExplorer::Abi::DarwinOS) {
@@ -185,8 +185,8 @@ QList<void *> QmakeProjectImporter::examineDirectory(const FileName &importPath)
         qCDebug(logs) << "  Extracted spec:" << data->parsedSpec;
         qCDebug(logs) << "  Arguments now:" << data->additionalArguments;
 
-        FileName versionSpec = version->mkspec();
-        if (data->parsedSpec.isEmpty() || data->parsedSpec == FileName::fromLatin1("default")) {
+        const QString versionSpec = version->mkspec();
+        if (data->parsedSpec.isEmpty() || data->parsedSpec == "default") {
             data->parsedSpec = versionSpec;
             qCDebug(logs) << "  No parsed spec or default spec => parsed spec now:" << data->parsedSpec;
         }
@@ -204,7 +204,7 @@ bool QmakeProjectImporter::matchKit(void *directoryData, const Kit *k) const
     const QLoggingCategory &logs = MakeFileParse::logging();
 
     BaseQtVersion *kitVersion = QtKitAspect::qtVersion(k);
-    FileName kitSpec = QmakeKitAspect::mkspec(k);
+    QString kitSpec = QmakeKitAspect::mkspec(k);
     ToolChain *tc = ToolChainKitAspect::toolChain(k, ProjectExplorer::Constants::CXX_LANGUAGE_ID);
     if (kitSpec.isEmpty() && kitVersion)
         kitSpec = kitVersion->mkspecFor(tc);
@@ -265,13 +265,13 @@ void QmakeProjectImporter::deleteDirectoryData(void *directoryData) const
     delete static_cast<DirectoryData *>(directoryData);
 }
 
-static const QList<ToolChain *> preferredToolChains(BaseQtVersion *qtVersion, const FileName &ms,
+static const QList<ToolChain *> preferredToolChains(BaseQtVersion *qtVersion, const QString &ms,
                                                     const QMakeStepConfig::TargetArchConfig &archConfig)
 {
-    const FileName spec = ms.isEmpty() ? qtVersion->mkspec() : ms;
+    const QString spec = ms.isEmpty() ? qtVersion->mkspec() : ms;
 
     const QList<ToolChain *> toolchains = ToolChainManager::toolChains();
-    QList<Abi> qtAbis = qtVersion->qtAbis();
+    const Abis qtAbis = qtVersion->qtAbis();
     const auto matcher = [&](const ToolChain *tc) {
         return qtAbis.contains(tc->targetAbi())
             && tc->suggestedMkspecList().contains(spec)
@@ -292,7 +292,7 @@ static const QList<ToolChain *> preferredToolChains(BaseQtVersion *qtVersion, co
 }
 
 Kit *QmakeProjectImporter::createTemporaryKit(const QtProjectImporter::QtVersionData &data,
-                                              const FileName &parsedSpec,
+                                              const QString &parsedSpec,
                                               const QMakeStepConfig::TargetArchConfig &archConfig,
                                               const QMakeStepConfig::OsType &osType) const
 {

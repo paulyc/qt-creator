@@ -50,6 +50,7 @@
 #include <QSet>
 
 using namespace ProjectExplorer;
+using namespace Utils;
 
 namespace CMakeProjectManager {
 namespace Internal {
@@ -58,12 +59,13 @@ namespace Internal {
 // BuildDirManager:
 // --------------------------------------------------------------------
 
-BuildDirManager::BuildDirManager() = default;
+BuildDirManager::BuildDirManager(CMakeProject *project) : m_project(project) { assert(project); }
+
 BuildDirManager::~BuildDirManager() = default;
 
-Utils::FileName BuildDirManager::workDirectory(const BuildDirParameters &parameters) const
+Utils::FilePath BuildDirManager::workDirectory(const BuildDirParameters &parameters) const
 {
-    const Utils::FileName bdir = parameters.buildDirectory;
+    const Utils::FilePath bdir = parameters.buildDirectory;
     const CMakeTool *cmake = parameters.cmakeTool();
     if (bdir.exists()) {
         m_buildDirToTempDir.erase(bdir);
@@ -87,7 +89,7 @@ Utils::FileName BuildDirManager::workDirectory(const BuildDirParameters &paramet
             return bdir;
         }
     }
-    return Utils::FileName::fromString(tmpDirIt->second->path());
+    return Utils::FilePath::fromString(tmpDirIt->second->path());
 }
 
 void BuildDirManager::emitDataAvailable()
@@ -106,24 +108,21 @@ void BuildDirManager::emitErrorOccured(const QString &message) const
 void BuildDirManager::updateReaderType(const BuildDirParameters &p,
                                        std::function<void()> todo)
 {
-    if (!m_reader || !m_reader->isCompatible(p)) {
-        m_reader.reset(BuildDirReader::createReader(p));
-        connect(m_reader.get(), &BuildDirReader::configurationStarted,
-                this, &BuildDirManager::parsingStarted);
-        connect(m_reader.get(), &BuildDirReader::dataAvailable,
-                this, &BuildDirManager::emitDataAvailable);
-        connect(m_reader.get(), &BuildDirReader::errorOccured,
-                this, &BuildDirManager::emitErrorOccured);
-        connect(m_reader.get(), &BuildDirReader::dirty, this, &BuildDirManager::becameDirty);
-    }
+    if (!m_reader || !m_reader->isCompatible(p))
+        m_reader = BuildDirReader::createReader(p);
+
     QTC_ASSERT(m_reader, return);
 
-    m_reader->setParameters(p);
+    connect(m_reader.get(), &BuildDirReader::configurationStarted,
+            this, &BuildDirManager::parsingStarted);
+    connect(m_reader.get(), &BuildDirReader::dataAvailable,
+            this, &BuildDirManager::emitDataAvailable);
+    connect(m_reader.get(), &BuildDirReader::errorOccured,
+            this, &BuildDirManager::emitErrorOccured);
+    connect(m_reader.get(), &BuildDirReader::dirty, this, &BuildDirManager::becameDirty);
+    connect(m_reader.get(), &BuildDirReader::isReadyNow, this, todo);
 
-    if (m_reader->isReady())
-        todo();
-    else
-        connect(m_reader.get(), &BuildDirReader::isReadyNow, this, todo);
+    m_reader->setParameters(p);
 }
 
 bool BuildDirManager::hasConfigChanged()
@@ -139,7 +138,10 @@ bool BuildDirManager::hasConfigChanged()
     const QByteArrayList criticalKeys
             = {GENERATOR_KEY, CMAKE_COMMAND_KEY, CMAKE_C_COMPILER_KEY, CMAKE_CXX_COMPILER_KEY};
 
-    const CMakeConfig currentConfig = takeCMakeConfiguration();
+    QString errorMessage;
+    const CMakeConfig currentConfig = takeCMakeConfiguration(errorMessage);
+    if (!errorMessage.isEmpty())
+        return false;
 
     const CMakeTool *tool = m_parameters.cmakeTool();
     QTC_ASSERT(tool, return false); // No cmake... we should not have ended up here in the first place
@@ -229,15 +231,19 @@ void BuildDirManager::setParametersAndRequestParse(const BuildDirParameters &par
 
 CMakeBuildConfiguration *BuildDirManager::buildConfiguration() const
 {
-    return m_parameters.buildConfiguration;
+    if (m_project->activeTarget() && m_project->activeTarget()->activeBuildConfiguration() == m_parameters.buildConfiguration)
+        return m_parameters.buildConfiguration;
+    return nullptr;
+}
+
+FilePath BuildDirManager::buildDirectory() const
+{
+    return buildConfiguration() ? m_parameters.buildDirectory : FilePath();
 }
 
 void BuildDirManager::becameDirty()
 {
-    if (isParsing())
-        return;
-
-    if (!m_parameters.buildConfiguration || !m_parameters.buildConfiguration->isActive())
+    if (isParsing() || !buildConfiguration())
         return;
 
     const CMakeTool *tool = m_parameters.cmakeTool();
@@ -260,13 +266,16 @@ bool BuildDirManager::persistCMakeState()
     if (m_parameters.workDirectory == m_parameters.buildDirectory)
         return false;
 
-    const Utils::FileName buildDir = m_parameters.buildDirectory;
+    const Utils::FilePath buildDir = m_parameters.buildDirectory;
     QDir dir(buildDir.toString());
     dir.mkpath(buildDir.toString());
 
     BuildDirParameters newParameters = m_parameters;
     newParameters.workDirectory.clear();
-    setParametersAndRequestParse(newParameters, REPARSE_URGENT | REPARSE_FORCE_CONFIGURATION | REPARSE_CHECK_CONFIGURATION,
+    setParametersAndRequestParse(newParameters,
+                                 REPARSE_URGENT
+                                 | REPARSE_FORCE_CMAKE_RUN | REPARSE_FORCE_CONFIGURATION
+                                 | REPARSE_CHECK_CONFIGURATION,
                                  REPARSE_FAIL);
     return true;
 }
@@ -282,27 +291,31 @@ void BuildDirManager::parse(int reparseParameters)
 
     TaskHub::clearTasks(ProjectExplorer::Constants::TASK_CATEGORY_BUILDSYSTEM);
 
-    if (reparseParameters & REPARSE_CHECK_CONFIGURATION) {
+    if (m_parameters.workDirectory.toFileInfo().exists("CMakeCache.txt")) {
+        reparseParameters |= REPARSE_FORCE_CONFIGURATION | REPARSE_FORCE_CMAKE_RUN;
+    } else if (reparseParameters & REPARSE_CHECK_CONFIGURATION) {
         if (checkConfiguration())
-            reparseParameters |= REPARSE_FORCE_CONFIGURATION;
+            reparseParameters |= REPARSE_FORCE_CONFIGURATION | REPARSE_FORCE_CMAKE_RUN;
     }
 
-    m_reader->parse(reparseParameters & REPARSE_FORCE_CONFIGURATION);
+    m_reader->parse(reparseParameters & REPARSE_FORCE_CMAKE_RUN,
+                    reparseParameters & REPARSE_FORCE_CONFIGURATION);
 }
 
-void BuildDirManager::generateProjectTree(CMakeProjectNode *root, const QList<const FileNode *> &allFiles) const
-{
-    QTC_ASSERT(!m_isHandlingError, return);
-    QTC_ASSERT(m_reader, return);
-
-    m_reader->generateProjectTree(root, allFiles);
-}
-
-CppTools::RawProjectParts BuildDirManager::createRawProjectParts() const
+std::unique_ptr<CMakeProjectNode> BuildDirManager::generateProjectTree(
+    const QList<const FileNode *> &allFiles, QString &errorMessage) const
 {
     QTC_ASSERT(!m_isHandlingError, return {});
     QTC_ASSERT(m_reader, return {});
-    return m_reader->createRawProjectParts();
+
+    return m_reader->generateProjectTree(allFiles, errorMessage);
+}
+
+CppTools::RawProjectParts BuildDirManager::createRawProjectParts(QString &errorMessage) const
+{
+    QTC_ASSERT(!m_isHandlingError, return {});
+    QTC_ASSERT(m_reader, return {});
+    return m_reader->createRawProjectParts(errorMessage);
 }
 
 void BuildDirManager::clearCache()
@@ -310,8 +323,8 @@ void BuildDirManager::clearCache()
     QTC_ASSERT(m_parameters.isValid(), return);
     QTC_ASSERT(!m_isHandlingError, return);
 
-    auto cmakeCache = m_parameters.workDirectory.appendPath("CMakeCache.txt");
-    auto cmakeFiles = m_parameters.workDirectory.appendPath("CMakeFiles");
+    const FilePath cmakeCache = m_parameters.workDirectory.pathAppended("CMakeCache.txt");
+    const FilePath cmakeFiles = m_parameters.workDirectory.pathAppended("CMakeFiles");
 
     const bool mustCleanUp = cmakeCache.exists() || cmakeFiles.exists();
     if (!mustCleanUp)
@@ -329,13 +342,13 @@ static CMakeBuildTarget utilityTarget(const QString &title, const BuildDirManage
 
     target.title = title;
     target.targetType = UtilityType;
-    target.workingDirectory = bdm->buildConfiguration()->buildDirectory();
-    target.sourceDirectory = bdm->buildConfiguration()->target()->project()->projectDirectory();
+    target.workingDirectory = bdm->buildDirectory();
+    target.sourceDirectory = bdm->project()->projectDirectory();
 
     return target;
 }
 
-QList<CMakeBuildTarget> BuildDirManager::takeBuildTargets() const
+QList<CMakeBuildTarget> BuildDirManager::takeBuildTargets(QString &errorMessage) const
 {
     QList<CMakeBuildTarget> result = { utilityTarget(CMakeBuildStep::allTarget(), this),
                                        utilityTarget(CMakeBuildStep::cleanTarget(), this),
@@ -344,7 +357,8 @@ QList<CMakeBuildTarget> BuildDirManager::takeBuildTargets() const
     QTC_ASSERT(!m_isHandlingError, return result);
 
     if (m_reader) {
-        result.append(Utils::filtered(m_reader->takeBuildTargets(), [](const CMakeBuildTarget &bt) {
+        result.append(Utils::filtered(m_reader->takeBuildTargets(errorMessage),
+                                      [](const CMakeBuildTarget &bt) {
             return bt.title != CMakeBuildStep::allTarget()
                     && bt.title != CMakeBuildStep::cleanTarget()
                     && bt.title != CMakeBuildStep::installTarget()
@@ -354,19 +368,19 @@ QList<CMakeBuildTarget> BuildDirManager::takeBuildTargets() const
     return result;
 }
 
-CMakeConfig BuildDirManager::takeCMakeConfiguration() const
+CMakeConfig BuildDirManager::takeCMakeConfiguration(QString &errorMessage) const
 {
     if (!m_reader)
         return CMakeConfig();
 
-    CMakeConfig result = m_reader->takeParsedConfiguration();
+    CMakeConfig result = m_reader->takeParsedConfiguration(errorMessage);
     for (auto &ci : result)
         ci.inCMakeCache = true;
 
     return result;
 }
 
-CMakeConfig BuildDirManager::parseCMakeConfiguration(const Utils::FileName &cacheFile,
+CMakeConfig BuildDirManager::parseCMakeConfiguration(const Utils::FilePath &cacheFile,
                                                      QString *errorMessage)
 {
     if (!cacheFile.exists()) {
@@ -382,12 +396,13 @@ CMakeConfig BuildDirManager::parseCMakeConfiguration(const Utils::FileName &cach
 
 bool BuildDirManager::checkConfiguration()
 {
-    QTC_ASSERT(m_parameters.isValid(), return false);
+    CMakeBuildConfiguration *bc = buildConfiguration();
+    QTC_ASSERT(m_parameters.isValid() || !bc, return false);
 
     if (m_parameters.workDirectory != m_parameters.buildDirectory) // always throw away changes in the tmpdir!
         return false;
 
-    const CMakeConfig cache = m_parameters.buildConfiguration->configurationFromCMake();
+    const CMakeConfig cache = bc->configurationFromCMake();
     if (cache.isEmpty())
         return false; // No cache file yet.
 
@@ -433,8 +448,8 @@ bool BuildDirManager::checkConfiguration()
         box->exec();
         if (box->clickedButton() == applyButton) {
             m_parameters.configuration = newConfig;
-            QSignalBlocker blocker(m_parameters.buildConfiguration);
-            m_parameters.buildConfiguration->setConfigurationForCMake(newConfig);
+            QSignalBlocker blocker(bc);
+            bc->setConfigurationForCMake(newConfig);
             return false;
         } else if (box->clickedButton() == defaultButton)
             return true;

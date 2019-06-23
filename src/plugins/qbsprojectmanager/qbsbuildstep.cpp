@@ -257,17 +257,17 @@ bool QbsBuildStep::hasCustomInstallRoot() const
     return m_qbsConfiguration.contains(Constants::QBS_INSTALL_ROOT_KEY);
 }
 
-Utils::FileName QbsBuildStep::installRoot(VariableHandling variableHandling) const
+Utils::FilePath QbsBuildStep::installRoot(VariableHandling variableHandling) const
 {
-    Utils::FileName root = Utils::FileName::fromString(qbsConfiguration(variableHandling)
-            .value(Constants::QBS_INSTALL_ROOT_KEY).toString());
-    if (root.isNull()) {
-        const QbsBuildConfiguration * const bc
-                = static_cast<QbsBuildConfiguration *>(buildConfiguration());
-        root = bc->buildDirectory().appendPath(bc->configurationName())
-                .appendPath(qbs::InstallOptions::defaultInstallRoot());
-    }
-    return root;
+    const QString root =
+            qbsConfiguration(variableHandling).value(Constants::QBS_INSTALL_ROOT_KEY).toString();
+    if (!root.isNull())
+        return Utils::FilePath::fromString(root);
+
+    const QbsBuildConfiguration * const bc
+            = static_cast<QbsBuildConfiguration *>(buildConfiguration());
+    return bc->buildDirectory().pathAppended(bc->configurationName())
+            .pathAppended(qbs::InstallOptions::defaultInstallRoot());
 }
 
 int QbsBuildStep::maxJobs() const
@@ -399,7 +399,7 @@ void QbsBuildStep::createTaskAndOutput(ProjectExplorer::Task::TaskType type, con
                                        const QString &file, int line)
 {
     ProjectExplorer::Task task = ProjectExplorer::Task(type, message,
-                                                       Utils::FileName::fromString(file), line,
+                                                       Utils::FilePath::fromString(file), line,
                                                        ProjectExplorer::Constants::TASK_CATEGORY_COMPILE);
     emit addTask(task, 1);
     emit addOutput(message, OutputFormat::Stdout);

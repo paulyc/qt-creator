@@ -60,15 +60,11 @@ Q_LOGGING_CATEGORY(winrtDeviceLog, "qtc.winrt.deviceParser", QtWarningMsg)
 
 WinRtDevice::WinRtDevice()
 {
+    setDisplayType(displayNameForType(type()));
     Utils::PortList portList;
     portList.addRange(Utils::Port(ProjectExplorer::Constants::DESKTOP_PORT_START),
                       Utils::Port(ProjectExplorer::Constants::DESKTOP_PORT_END));
     setFreePorts(portList);
-}
-
-QString WinRtDevice::displayType() const
-{
-    return displayNameForType(type());
 }
 
 IDeviceWidget *WinRtDevice::createWidget()
@@ -104,11 +100,6 @@ QVariantMap WinRtDevice::toMap() const
 Utils::OsType WinRtDevice::osType() const
 {
     return Utils::OsTypeWindows;
-}
-
-IDevice::Ptr WinRtDevice::clone() const
-{
-    return IDevice::Ptr(new WinRtDevice(*this));
 }
 
 QString WinRtDevice::displayNameForType(Core::Id type)
@@ -164,11 +155,10 @@ void WinRtDeviceFactory::autoDetect()
                 this, &WinRtDeviceFactory::onProcessFinished);
     }
 
-    const QString args = QStringLiteral("--list-devices");
-    m_process->setCommand(runnerFilePath, args);
-    qCDebug(winrtDeviceLog) << __FUNCTION__ << "Starting process" << runnerFilePath
-                            << "with arguments" << args;
-    MessageManager::write(runnerFilePath + QLatin1Char(' ') + args);
+    const CommandLine cmd(FilePath::fromString(runnerFilePath), {"--list-devices"});
+    m_process->setCommand(cmd);
+    qCDebug(winrtDeviceLog) << __FUNCTION__ << "Starting process" << cmd.toUserOutput();
+    MessageManager::write(cmd.toUserOutput());
     m_process->start();
     qCDebug(winrtDeviceLog) << __FUNCTION__ << "Process started";
 }

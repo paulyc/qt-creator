@@ -39,6 +39,7 @@ namespace Internal {
 class BaseBoolAspectPrivate;
 class BaseStringAspectPrivate;
 class BaseIntegerAspectPrivate;
+class BaseSelectionAspectPrivate;
 } // Internal
 
 class PROJECTEXPLORER_EXPORT BaseBoolAspect : public ProjectConfigurationAspect
@@ -67,6 +68,31 @@ private:
     std::unique_ptr<Internal::BaseBoolAspectPrivate> d;
 };
 
+class PROJECTEXPLORER_EXPORT BaseSelectionAspect : public ProjectConfigurationAspect
+{
+    Q_OBJECT
+
+public:
+    BaseSelectionAspect();
+    ~BaseSelectionAspect() override;
+
+    void addToConfigurationLayout(QFormLayout *layout) override;
+
+    int value() const;
+    void setValue(int val);
+
+    int defaultValue() const;
+    void setDefaultValue(int defaultValue);
+
+    void addOption(const QString &displayName, const QString &toolTip = {});
+
+    void fromMap(const QVariantMap &map) override;
+    void toMap(QVariantMap &map) const override;
+
+private:
+    std::unique_ptr<Internal::BaseSelectionAspectPrivate> d;
+};
+
 class PROJECTEXPLORER_EXPORT BaseStringAspect : public ProjectConfigurationAspect
 {
     Q_OBJECT
@@ -89,7 +115,7 @@ public:
     void setHistoryCompleter(const QString &historyCompleterKey);
     void setExpectedKind(const Utils::PathChooser::Kind expectedKind);
     void setEnvironment(const Utils::Environment &env);
-    void setBaseFileName(const Utils::FileName &baseFileName);
+    void setBaseFileName(const Utils::FilePath &baseFileName);
 
     bool isChecked() const;
     void makeCheckable(const QString &optionalLabel, const QString &optionalBaseKey);
@@ -105,8 +131,8 @@ public:
     void fromMap(const QVariantMap &map) override;
     void toMap(QVariantMap &map) const override;
 
-    Utils::FileName fileName() const;
-    void setFileName(const Utils::FileName &val);
+    Utils::FilePath fileName() const;
+    void setFileName(const Utils::FilePath &val);
 
 private:
     void update();

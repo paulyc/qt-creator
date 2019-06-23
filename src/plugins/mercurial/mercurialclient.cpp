@@ -232,7 +232,7 @@ bool MercurialClient::synchronousPull(const QString &workingDir, const QString &
     QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
     env.insert(QLatin1String("LANGUAGE"), QLatin1String("C"));
     const SynchronousProcessResponse resp = VcsBasePlugin::runVcs(
-                workingDir, vcsBinary(), args, vcsTimeoutS(), flags, nullptr, env);
+                workingDir, {vcsBinary(), args}, vcsTimeoutS(), flags, nullptr, env);
     const bool ok = resp.result == SynchronousProcessResponse::Finished;
 
     parsePullOutput(resp.stdOut().trimmed());
@@ -440,7 +440,7 @@ void MercurialClient::revertAll(const QString &workingDir, const QString &revisi
                              QStringList(extraOptions) << QLatin1String("--all"));
 }
 
-bool MercurialClient::isVcsDirectory(const FileName &fileName) const
+bool MercurialClient::isVcsDirectory(const FilePath &fileName) const
 {
     return fileName.toFileInfo().isDir()
             && !fileName.fileName().compare(Constants::MERCURIALREPO, HostOsInfo::fileNameCaseSensitivity());

@@ -173,7 +173,7 @@ void MainQmlFileAspect::updateFileComboBox()
     QModelIndex currentIndex;
 
     QStringList sortedFiles = Utils::transform(m_project->files(Project::AllFiles),
-                                               &Utils::FileName::toString);
+                                               &Utils::FilePath::toString);
 
     // make paths relative to project directory
     QStringList relativeFiles;
@@ -300,12 +300,18 @@ QmlProjectRunConfiguration::QmlProjectRunConfiguration(Target *target, Id id)
 
     m_qmlViewerAspect = addAspect<BaseStringAspect>();
     m_qmlViewerAspect->setLabelText(tr("QML Viewer:"));
-    m_qmlViewerAspect->setPlaceHolderText(executable());
+    m_qmlViewerAspect->setPlaceHolderText(commandLine().executable().toString());
     m_qmlViewerAspect->setDisplayStyle(BaseStringAspect::LineEditDisplay);
     m_qmlViewerAspect->setHistoryCompleter("QmlProjectManager.viewer.history");
 
     auto argumentAspect = addAspect<ArgumentsAspect>();
     argumentAspect->setSettingsKey(Constants::QML_VIEWER_ARGUMENTS_KEY);
+
+    setCommandLineGetter([this] {
+        return CommandLine(FilePath::fromString(theExecutable()),
+                           commandLineArguments(),
+                           CommandLine::Raw);
+    });
 
     auto qmlProject = qobject_cast<QmlProject *>(target->project());
     QTC_ASSERT(qmlProject, return);
@@ -314,7 +320,6 @@ QmlProjectRunConfiguration::QmlProjectRunConfiguration(Target *target, Id id)
             this, &QmlProjectRunConfiguration::updateEnabledState);
 
     setOutputFormatter<QtSupport::QtOutputFormatter>();
-
     connect(target, &Target::kitChanged,
             this, &QmlProjectRunConfiguration::updateEnabledState);
 
@@ -325,8 +330,7 @@ QmlProjectRunConfiguration::QmlProjectRunConfiguration(Target *target, Id id)
 Runnable QmlProjectRunConfiguration::runnable() const
 {
     Runnable r;
-    r.executable = executable();
-    r.commandLineArguments = commandLineArguments();
+    r.setCommandLine(commandLine());
     r.environment = aspect<EnvironmentAspect>()->environment();
     r.workingDirectory = static_cast<QmlProject *>(project())->targetDirectory(target()).toString();
     return r;
@@ -338,15 +342,15 @@ QString QmlProjectRunConfiguration::disabledReason() const
         return tr("No script file to execute.");
     if (DeviceTypeKitAspect::deviceTypeId(target()->kit())
             == ProjectExplorer::Constants::DESKTOP_DEVICE_TYPE
-            && !QFileInfo::exists(executable())) {
+            && !commandLine().executable().exists()) {
         return tr("No qmlscene found.");
     }
-    if (executable().isEmpty())
+    if (commandLine().executable().isEmpty())
         return tr("No qmlscene binary specified for target device.");
     return RunConfiguration::disabledReason();
 }
 
-QString QmlProjectRunConfiguration::executable() const
+QString QmlProjectRunConfiguration::theExecutable() const
 {
     const QString qmlViewer = m_qmlViewerAspect->value();
     if (!qmlViewer.isEmpty())
@@ -394,7 +398,7 @@ QString QmlProjectRunConfiguration::commandLineArguments() const
         Utils::QtcProcess::addArg(&args, fileSelector, osType);
     }
 
-    const QString main = project->targetFile(Utils::FileName::fromString(mainScript()),
+    const QString main = project->targetFile(Utils::FilePath::fromString(mainScript()),
                                              currentTarget).toString();
     if (!main.isEmpty())
         Utils::QtcProcess::addArg(&args, main, osType);
@@ -404,7 +408,7 @@ QString QmlProjectRunConfiguration::commandLineArguments() const
 void QmlProjectRunConfiguration::updateEnabledState()
 {
     bool enabled = false;
-    if (m_mainQmlFileAspect->isQmlFilePresent() && !executable().isEmpty()) {
+    if (m_mainQmlFileAspect->isQmlFilePresent() && !commandLine().executable().isEmpty()) {
         Project *p = target()->project();
         enabled = !p->isParsing() && p->hasParsingData();
     }
@@ -431,7 +435,7 @@ bool MainQmlFileAspect::isQmlFilePresent()
             // find a qml file with lowercase filename. This is slow, but only done
             // in initialization/other border cases.
             const auto files = m_project->files(Project::AllFiles);
-            for (const Utils::FileName &filename : files) {
+            for (const Utils::FilePath &filename : files) {
                 const QFileInfo fi = filename.toFileInfo();
 
                 if (!filename.isEmpty() && fi.baseName().at(0).isLower()) {

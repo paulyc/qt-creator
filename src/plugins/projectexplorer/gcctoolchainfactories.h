@@ -55,18 +55,9 @@ public:
     GccToolChainFactory();
 
     QList<ToolChain *> autoDetect(const QList<ToolChain *> &alreadyKnown) override;
-    QList<ToolChain *> autoDetect(const Utils::FileName &compilerPath, const Core::Id &language) override;
-
-    bool canCreate() override;
-    ToolChain *create() override;
-
-    ToolChain *restore(const QVariantMap &data) override;
+    QList<ToolChain *> autoDetect(const Utils::FilePath &compilerPath, const Core::Id &language) override;
 
 protected:
-    virtual GccToolChain *createToolChain(bool autoDetect);
-
-    Utils::FileName compilerPathFromEnvironment(const QString &compilerName);
-
     enum class DetectVariants { Yes, No };
     using ToolchainChecker = std::function<bool(const ToolChain *)>;
     QList<ToolChain *> autoDetectToolchains(
@@ -74,7 +65,7 @@ protected:
             const Core::Id requiredTypeId, const QList<ToolChain *> &alreadyKnown,
             const ToolchainChecker &checker = {});
     QList<ToolChain *> autoDetectToolChain(
-            const Utils::FileName &compilerPath, const Core::Id language,
+            const Utils::FilePath &compilerPath, const Core::Id language,
             const ToolchainChecker &checker = {});
 };
 
@@ -147,10 +138,7 @@ public:
     ClangToolChainFactory();
 
     QList<ToolChain *> autoDetect(const QList<ToolChain *> &alreadyKnown) override;
-    QList<ToolChain *> autoDetect(const Utils::FileName &compilerPath, const Core::Id &language) final;
-
-protected:
-    GccToolChain *createToolChain(bool autoDetect) override;
+    QList<ToolChain *> autoDetect(const Utils::FilePath &compilerPath, const Core::Id &language) final;
 };
 
 // --------------------------------------------------------------------------
@@ -165,10 +153,7 @@ public:
     MingwToolChainFactory();
 
     QList<ToolChain *> autoDetect(const QList<ToolChain *> &alreadyKnown) override;
-    QList<ToolChain *> autoDetect(const Utils::FileName &compilerPath, const Core::Id &language) final;
-
-protected:
-    GccToolChain *createToolChain(bool autoDetect) override;
+    QList<ToolChain *> autoDetect(const Utils::FilePath &compilerPath, const Core::Id &language) final;
 };
 
 // --------------------------------------------------------------------------
@@ -183,10 +168,7 @@ public:
     LinuxIccToolChainFactory();
 
     QList<ToolChain *> autoDetect(const QList<ToolChain *> &alreadyKnown) override;
-    QList<ToolChain *> autoDetect(const Utils::FileName &compilerPath, const Core::Id &language) final;
-
-protected:
-    GccToolChain *createToolChain(bool autoDetect) override;
+    QList<ToolChain *> autoDetect(const Utils::FilePath &compilerPath, const Core::Id &language) final;
 };
 
 } // namespace Internal

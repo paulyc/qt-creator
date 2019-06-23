@@ -58,14 +58,31 @@ public:
     { return check<QString>(error, languageKey) && check<QString>(error, valueKey); }
 };
 
-class MarkedString : public Utils::variant<MarkedLanguageString, QList<MarkedLanguageString>, MarkupContent>
+class LANGUAGESERVERPROTOCOL_EXPORT MarkedString
+    : public Utils::variant<QString, MarkedLanguageString>
 {
 public:
     MarkedString() = default;
-    explicit MarkedString(const MarkedLanguageString &other) : variant(other) {}
-    explicit MarkedString(const QList<MarkedLanguageString> &other) : variant(other) {}
-    explicit MarkedString(const MarkupContent &other) : variant(other) {}
+    explicit MarkedString(const MarkedLanguageString &other)
+        : variant(other)
+    {}
+    explicit MarkedString(const QString &other)
+        : variant(other)
+    {}
     explicit MarkedString(const QJsonValue &value);
+
+    operator QJsonValue() const;
+};
+
+class LANGUAGESERVERPROTOCOL_EXPORT HoverContent
+    : public Utils::variant<MarkedString, QList<MarkedString>, MarkupContent>
+{
+public:
+    HoverContent() = default;
+    explicit HoverContent(const MarkedString &other) : variant(other) {}
+    explicit HoverContent(const QList<MarkedString> &other) : variant(other) {}
+    explicit HoverContent(const MarkupContent &other) : variant(other) {}
+    explicit HoverContent(const QJsonValue &value);
     bool isValid(QStringList *errorHierarchy) const;
 };
 
@@ -74,15 +91,15 @@ class LANGUAGESERVERPROTOCOL_EXPORT Hover : public JsonObject
 public:
     using JsonObject::JsonObject;
 
-    MarkedString content() const;
-    void setContent(const MarkedString &content);
+    HoverContent content() const;
+    void setContent(const HoverContent &content);
 
     Utils::optional<Range> range() const { return optionalValue<Range>(rangeKey); }
     void setRange(const Range &range) { insert(rangeKey, range); }
     void clearRange() { remove(rangeKey); }
 
     bool isValid(QStringList *error) const override
-    { return check<MarkedString>(error, contentKey) && checkOptional<Range>(error, rangeKey); }
+    { return check<HoverContent>(error, contentsKey) && checkOptional<Range>(error, rangeKey); }
 };
 
 class LANGUAGESERVERPROTOCOL_EXPORT HoverRequest
@@ -787,6 +804,62 @@ public:
     RenameRequest(const RenameParams &params = RenameParams());
     using Request::Request;
     constexpr static const char methodName[] = "textDocument/rename";
+};
+
+class LANGUAGESERVERPROTOCOL_EXPORT SemanticHighlightToken
+{
+public:
+    // Just accepts token with 8 bytes
+    SemanticHighlightToken(const QByteArray &token);
+    SemanticHighlightToken() = default;
+
+    void appendToByteArray(QByteArray &byteArray) const;
+
+    quint32 character = 0;
+    quint16 length = 0;
+    quint16 scope = 0;
+};
+
+class LANGUAGESERVERPROTOCOL_EXPORT SemanticHighlightingInformation : public JsonObject
+{
+public:
+    using JsonObject::JsonObject;
+
+    int line() const { return typedValue<int>(lineKey); }
+    void setLine(int line) { insert(lineKey, line); }
+
+    Utils::optional<QList<SemanticHighlightToken>> tokens() const;
+    void setTokens(const QList<SemanticHighlightToken> &tokens);
+    void clearTokens() { remove(tokensKey); }
+
+    bool isValid(QStringList *error) const override
+    { return check<int>(error, lineKey) && checkOptional<QString>(error, tokensKey); }
+};
+
+class LANGUAGESERVERPROTOCOL_EXPORT SemanticHighlightingParams : public JsonObject
+{
+public:
+    using JsonObject::JsonObject;
+
+    VersionedTextDocumentIdentifier textDocument() const
+    { return typedValue<VersionedTextDocumentIdentifier>(textDocumentKey); }
+    void setTextDocument(const VersionedTextDocumentIdentifier &textDocument)
+    { insert(textDocumentKey, textDocument); }
+
+    QList<SemanticHighlightingInformation> lines() const
+    { return array<SemanticHighlightingInformation>(linesKey); }
+    void setLines(const QList<SemanticHighlightingInformation> &lines)
+    { insertArray(linesKey, lines); }
+
+    bool isValid(QStringList *error) const override;
+};
+
+class LANGUAGESERVERPROTOCOL_EXPORT SemanticHighlightNotification
+    : public Notification<SemanticHighlightingParams>
+{
+public:
+    using Notification::Notification;
+    constexpr static const char methodName[] = "textDocument/semanticHighlighting";
 };
 
 } // namespace LanguageClient

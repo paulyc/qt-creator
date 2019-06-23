@@ -25,6 +25,7 @@
 
 #include "makeinstallstep.h"
 
+#include <projectexplorer/buildconfiguration.h>
 #include <projectexplorer/buildsteplist.h>
 #include <projectexplorer/deployconfiguration.h>
 #include <projectexplorer/processparameters.h>
@@ -84,7 +85,7 @@ MakeInstallStep::MakeInstallStep(BuildStepList *parent) : MakeStep(parent, stepI
     commandLineAspect->setLabelText(tr("Full command line:"));
 
     QTemporaryDir tmpDir;
-    installRootAspect->setFileName(FileName::fromString(tmpDir.path()));
+    installRootAspect->setFileName(FilePath::fromString(tmpDir.path()));
     const MakeInstallCommand cmd = target()->makeInstallCommand(tmpDir.path());
     QTC_ASSERT(!cmd.command.isEmpty(), return);
     makeAspect->setExecutable(cmd.command);
@@ -111,7 +112,7 @@ bool MakeInstallStep::init()
         return false;
     const QString rootDirPath = installRoot().toString();
     if (rootDirPath.isEmpty()) {
-        emit addTask(Task(Task::Error, tr("You must provide an install root."), FileName(), -1,
+        emit addTask(Task(Task::Error, tr("You must provide an install root."), FilePath(), -1,
                      Constants::TASK_CATEGORY_BUILDSYSTEM));
         return false;
     }
@@ -119,19 +120,19 @@ bool MakeInstallStep::init()
     if (cleanInstallRoot() && !rootDir.removeRecursively()) {
         emit addTask(Task(Task::Error, tr("The install root '%1' could not be cleaned.")
                           .arg(installRoot().toUserOutput()),
-                          FileName(), -1, Constants::TASK_CATEGORY_BUILDSYSTEM));
+                          FilePath(), -1, Constants::TASK_CATEGORY_BUILDSYSTEM));
         return false;
     }
     if (!rootDir.exists() && !QDir::root().mkpath(rootDirPath)) {
         emit addTask(Task(Task::Error, tr("The install root '%1' could not be created.")
                           .arg(installRoot().toUserOutput()),
-                          FileName(), -1, Constants::TASK_CATEGORY_BUILDSYSTEM));
+                          FilePath(), -1, Constants::TASK_CATEGORY_BUILDSYSTEM));
         return false;
     }
     if (this == deployConfiguration()->stepList()->steps().last()) {
         emit addTask(Task(Task::Warning, tr("The \"make install\" step should probably not be "
                                             "last in the list of deploy steps. "
-                                            "Consider moving it up."), FileName(), -1,
+                                            "Consider moving it up."), FilePath(), -1,
                           Constants::TASK_CATEGORY_BUILDSYSTEM));
     }
     const MakeInstallCommand cmd = target()->makeInstallCommand(installRoot().toString());
@@ -141,6 +142,12 @@ bool MakeInstallStep::init()
             env.set(it.key(), it.value());
         processParameters()->setEnvironment(env);
     }
+    m_noInstallTarget = false;
+    const auto buildStep = buildConfiguration()
+            ->stepList(ProjectExplorer::Constants::BUILDSTEPS_BUILD)
+            ->firstOfType<AbstractProcessStep>();
+    m_isCmakeProject = buildStep && buildStep->processParameters()->command().toString()
+            .contains("cmake");
     return true;
 }
 
@@ -157,11 +164,24 @@ void MakeInstallStep::finish(bool success)
                                      fi.dir().path().mid(installRoot().toString().length()));
         }
         target()->setDeploymentData(m_deploymentData);
+    } else if (m_noInstallTarget && m_isCmakeProject) {
+        emit addTask(Task(Task::Warning, tr("You need to add an install statement to your "
+                                            "CMakeLists.txt file for deployment to work."),
+                          FilePath(), -1, ProjectExplorer::Constants::TASK_CATEGORY_DEPLOYMENT));
     }
     MakeStep::finish(success);
 }
 
-FileName MakeInstallStep::installRoot() const
+void MakeInstallStep::stdError(const QString &line)
+{
+    // When using Makefiles: "No rule to make target 'install'"
+    // When using ninja: "ninja: error: unknown target 'install'"
+    if (line.contains("target 'install'"))
+        m_noInstallTarget = true;
+    MakeStep::stdError(line);
+}
+
+FilePath MakeInstallStep::installRoot() const
 {
     return static_cast<BaseStringAspect *>(aspect(InstallRootAspectId))->fileName();
 }
@@ -173,7 +193,7 @@ bool MakeInstallStep::cleanInstallRoot() const
 
 void MakeInstallStep::updateCommandFromAspect()
 {
-    setMakeCommand(aspect<ExecutableAspect>()->executable().toString());
+    setMakeCommand(aspect<ExecutableAspect>()->executable());
     updateFullCommandLine();
 }
 
@@ -187,8 +207,10 @@ void MakeInstallStep::updateArgsFromAspect()
 
 void MakeInstallStep::updateFullCommandLine()
 {
+    // FIXME: Only executable?
     static_cast<BaseStringAspect *>(aspect(FullCommandLineAspectId))->setValue(
-                QDir::toNativeSeparators(QtcProcess::quoteArg(effectiveMakeCommand()))
+                QDir::toNativeSeparators(
+                    QtcProcess::quoteArg(effectiveMakeCommand().executable().toString()))
                 + ' '  + userArguments());
 }
 

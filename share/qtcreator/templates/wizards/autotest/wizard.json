@@ -87,6 +87,10 @@
                             {
                                 "trKey": "Qt Quick Test",
                                 "value": "QtQuickTest"
+                            },
+                            {
+                                "trKey": "Boost Test",
+                                "value": "BoostTest"
                             }
 
                         ]
@@ -100,6 +104,14 @@
                     "data": {
                         "checked": false
                     }
+                },
+                {
+                    "name": "TestSuiteName",
+                    "trDisplayName": "Test suite name:",
+                    "visible": "%{JS: ['BoostTest', 'GTest'].indexOf(value('TestFrameWork')) >= 0}",
+                    "mandatory": true,
+                    "type": "LineEdit",
+                    "data": { "validator": "^[a-zA-Z_0-9]+$" }
                 },
                 {
                     "name": "TestCaseName",
@@ -127,13 +139,6 @@
                     }
                 },
                 {
-                    "name": "TestSetName",
-                    "trDisplayName": "Test set name:",
-                    "visible": "%{JS: value('TestFrameWork') === 'GTest'}",
-                    "type": "LineEdit",
-                    "data": { "validator": "^[a-zA-Z0-9]+$" }
-                },
-                {
                     "name": "GTestCXX11",
                     "trDisplayName": "Enable C++11",
                     "visible": "%{JS: value('TestFrameWork') === 'GTest'}",
@@ -146,6 +151,16 @@
                     "name": "GTestRepository",
                     "trDisplayName": "Googletest repository:",
                     "visible": "%{JS: value('TestFrameWork') === 'GTest'}",
+                    "type": "PathChooser",
+                    "data": {
+                        "kind": "existingDirectory"
+                    }
+                },
+                {
+                    "name": "BoostIncDir",
+                    "trDisplayName": "Boost include dir (optional):",
+                    "visible": "%{JS: value('TestFrameWork') == 'BoostTest'}",
+                    "mandatory": false,
                     "type": "PathChooser",
                     "data": {
                         "kind": "existingDirectory"
@@ -250,7 +265,7 @@
                 {
                     "source": "files/tst_main.cpp",
                     "target": "%{MainCppName}",
-                    "condition": "%{JS: ['GTest', 'QtQuickTest'].indexOf(value('TestFrameWork')) >= 0}",
+                    "condition": "%{JS: ['GTest', 'QtQuickTest', 'BoostTest'].indexOf(value('TestFrameWork')) >= 0}",
                     "openInEditor": true
                 },
                 {

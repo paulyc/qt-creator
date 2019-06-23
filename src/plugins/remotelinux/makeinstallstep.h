@@ -28,7 +28,7 @@
 #include <projectexplorer/deploymentdata.h>
 #include <projectexplorer/makestep.h>
 
-namespace Utils { class FileName; }
+namespace Utils { class FilePath; }
 
 namespace RemoteLinux {
 namespace Internal {
@@ -47,8 +47,9 @@ private:
     ProjectExplorer::BuildStepConfigWidget * createConfigWidget() override;
     bool init() override;
     void finish(bool success) override;
+    void stdError(const QString &line) override;
 
-    Utils::FileName installRoot() const;
+    Utils::FilePath installRoot() const;
     bool cleanInstallRoot() const;
 
     void updateCommandFromAspect();
@@ -56,6 +57,8 @@ private:
     void updateFullCommandLine();
 
     ProjectExplorer::DeploymentData m_deploymentData;
+    bool m_noInstallTarget = false;
+    bool m_isCmakeProject = false;
 };
 
 } // namespace Internal

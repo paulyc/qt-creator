@@ -186,12 +186,30 @@ RunConfiguration::RunConfiguration(Target *target, Core::Id id)
         const auto envAspect = aspect<EnvironmentAspect>();
         return envAspect ? envAspect->environment().value(var) : QString();
     });
+
+    expander->registerVariable(Constants::VAR_CURRENTRUN_WORKINGDIR,
+                               tr("The currently active run configuration's working directory"),
+                               [this, expander] {
+        const auto wdAspect = aspect<WorkingDirectoryAspect>();
+        return wdAspect ? wdAspect->workingDirectory(expander).toString() : QString();
+    });
+
     expander->registerVariable(Constants::VAR_CURRENTRUN_NAME,
             QCoreApplication::translate("ProjectExplorer", "The currently active run configuration's name."),
             [this] { return displayName(); }, false);
 
     for (const AspectFactory &factory : theAspectFactories)
         m_aspects.append(factory(target));
+
+    m_commandLineGetter = [this] {
+        FilePath executable;
+        if (const auto executableAspect = aspect<ExecutableAspect>())
+            executable = executableAspect->executable();
+        QString arguments;
+        if (const auto argumentsAspect = aspect<ArgumentsAspect>())
+            arguments = argumentsAspect->arguments(macroExpander());
+        return CommandLine{executable, arguments, CommandLine::Raw};
+    };
 }
 
 RunConfiguration::~RunConfiguration() = default;
@@ -215,7 +233,7 @@ QString RunConfiguration::disabledReason() const
         return tr("The Project is currently being parsed.");
     if (!target()->project()->hasParsingData()) {
         QString msg = tr("The project could not be fully parsed.");
-        const FileName projectFilePath = buildTargetInfo().projectFilePath;
+        const FilePath projectFilePath = buildTargetInfo().projectFilePath;
         if (!projectFilePath.exists())
             msg += '\n' + tr("The project file \"%1\" does not exist.").arg(projectFilePath.toString());
         return msg;
@@ -313,6 +331,16 @@ QVariantMap RunConfiguration::toMap() const
     return map;
 }
 
+void RunConfiguration::setCommandLineGetter(const CommandLineGetter &cmdGetter)
+{
+    m_commandLineGetter = cmdGetter;
+}
+
+CommandLine RunConfiguration::commandLine() const
+{
+    return m_commandLineGetter();
+}
+
 BuildTargetInfo RunConfiguration::buildTargetInfo() const
 {
     return target()->buildTarget(m_buildKey);
@@ -368,10 +396,7 @@ bool RunConfiguration::fromMap(const QVariantMap &map)
 Runnable RunConfiguration::runnable() const
 {
     Runnable r;
-    if (auto executableAspect = aspect<ExecutableAspect>())
-        r.executable = executableAspect->executable().toString();
-    if (auto argumentsAspect = aspect<ArgumentsAspect>())
-        r.commandLineArguments = argumentsAspect->arguments(macroExpander());
+    r.setCommandLine(commandLine());
     if (auto workingDirectoryAspect = aspect<WorkingDirectoryAspect>())
         r.workingDirectory = workingDirectoryAspect->workingDirectory(macroExpander()).toString();
     if (auto environmentAspect = aspect<EnvironmentAspect>())
@@ -453,7 +478,7 @@ QString RunConfigurationFactory::decoratedTargetName(const QString &targetName, 
 QList<RunConfigurationCreationInfo>
 RunConfigurationFactory::availableCreators(Target *parent) const
 {
-    const QList<BuildTargetInfo> buildTargets = parent->applicationTargets().list;
+    const QList<BuildTargetInfo> buildTargets = parent->applicationTargets();
     const bool hasAnyQtcRunnable = Utils::anyOf(buildTargets,
                                             Utils::equal(&BuildTargetInfo::isQtcRunnable, true));
     return Utils::transform(buildTargets, [&](const BuildTargetInfo &ti) {
@@ -496,8 +521,6 @@ void RunConfigurationFactory::setDecorateDisplayNames(bool on)
     m_decorateDisplayNames = on;
 }
 
-
-
 void RunConfigurationFactory::addSupportedProjectType(Core::Id id)
 {
     m_supportedProjectTypes.append(id);
@@ -533,6 +556,7 @@ RunConfiguration *RunConfigurationCreationInfo::create(Target *target) const
     if (!rc)
         return nullptr;
 
+    rc->acquaintAspects();
     rc->m_buildKey = buildKey;
     rc->doAdditionalSetup(*this);
     rc->setDisplayName(displayName);
@@ -548,6 +572,7 @@ RunConfiguration *RunConfigurationFactory::restore(Target *parent, const QVarian
             if (id.name().startsWith(factory->m_runConfigBaseId.name())) {
                 QTC_ASSERT(factory->m_creator, continue);
                 RunConfiguration *rc = factory->m_creator(parent);
+                rc->acquaintAspects();
                 if (rc->fromMap(map))
                     return rc;
                 delete rc;

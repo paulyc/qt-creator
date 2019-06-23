@@ -145,7 +145,7 @@ public:
         if (hideSwitcherUnlessNeeded)
             m_engineChooser->hide();
 
-        connect(m_engineChooser, static_cast<void(QComboBox::*)(int)>(&QComboBox::activated),
+        connect(m_engineChooser, QOverload<int>::of(&QComboBox::activated),
                 this, &EngineManagerPrivate::activateEngineByIndex);
     }
 
@@ -245,7 +245,7 @@ QVariant EngineItem::data(int column, int role) const
                 return myName;
             }
             case 1:
-                return rp.coreFile.isEmpty() ? rp.inferior.executable : rp.coreFile;
+                return rp.coreFile.isEmpty() ? rp.inferior.executable.toUserOutput() : rp.coreFile;
             }
             return QVariant();
 

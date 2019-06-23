@@ -24,7 +24,9 @@
 ****************************************************************************/
 
 #include "qmakenodes.h"
+
 #include "qmakeproject.h"
+#include "qmakeprojectmanager.h"
 
 #include <projectexplorer/buildconfiguration.h>
 #include <projectexplorer/runconfiguration.h>
@@ -53,7 +55,7 @@ namespace QmakeProjectManager {
   */
 
 QmakePriFileNode::QmakePriFileNode(QmakeProject *project, QmakeProFileNode *qmakeProFileNode,
-                                   const FileName &filePath, QmakePriFile *pf) :
+                                   const FilePath &filePath, QmakePriFile *pf) :
     ProjectNode(filePath),
     m_project(project),
     m_qmakeProFileNode(qmakeProFileNode),
@@ -217,6 +219,13 @@ bool QmakePriFileNode::renameFile(const QString &filePath, const QString &newFil
     return pri ? pri->renameFile(filePath, newFilePath) : false;
 }
 
+bool QmakePriFileNode::addDependencies(const QStringList &dependencies)
+{
+    if (QmakePriFile * const pri = priFile())
+        return pri->addDependencies(dependencies);
+    return false;
+}
+
 FolderNode::AddNewInformation QmakePriFileNode::addNewInformation(const QStringList &files, Node *context) const
 {
     Q_UNUSED(files)
@@ -227,9 +236,11 @@ FolderNode::AddNewInformation QmakePriFileNode::addNewInformation(const QStringL
   \class QmakeProFileNode
   Implements abstract ProjectNode class
   */
-QmakeProFileNode::QmakeProFileNode(QmakeProject *project, const FileName &filePath, QmakeProFile *pf) :
+QmakeProFileNode::QmakeProFileNode(QmakeProject *project, const FilePath &filePath, QmakeProFile *pf) :
     QmakePriFileNode(project, this, filePath, pf)
-{ }
+{
+    setIsProduct();
+}
 
 bool QmakeProFileNode::showInSimpleTree() const
 {
@@ -251,6 +262,11 @@ bool QmakeProFileNode::validParse() const
 {
     QmakeProjectManager::QmakeProFile *pro = proFile();
     return pro && pro->validParse();
+}
+
+void QmakeProFileNode::build()
+{
+    QmakeManager::buildProduct(getProject(), this);
 }
 
 QStringList QmakeProFileNode::targetApplications() const
@@ -279,10 +295,10 @@ QVariant QmakeProFileNode::data(Core::Id role) const
     if (role == Android::Constants::AndroidSoLibPath) {
         TargetInformation info = targetInformation();
         QStringList res = {info.buildDir.toString()};
-        Utils::FileName destDir = info.destDir;
+        Utils::FilePath destDir = info.destDir;
         if (!destDir.isEmpty()) {
             if (destDir.toFileInfo().isRelative())
-                destDir = Utils::FileName::fromString(QDir::cleanPath(info.buildDir.toString()
+                destDir = Utils::FilePath::fromString(QDir::cleanPath(info.buildDir.toString()
                                                                       + '/' + destDir.toString()));
             res.append(destDir.toString());
         }
@@ -411,10 +427,10 @@ QString QmakeProFileNode::buildDir() const
     return QString();
 }
 
-FileName QmakeProFileNode::buildDir(QmakeBuildConfiguration *bc) const
+FilePath QmakeProFileNode::buildDir(QmakeBuildConfiguration *bc) const
 {
     const QmakeProFile *pro = proFile();
-    return pro ? pro->buildDir(bc) : FileName();
+    return pro ? pro->buildDir(bc) : FilePath();
 }
 
 QString QmakeProFileNode::objectExtension() const

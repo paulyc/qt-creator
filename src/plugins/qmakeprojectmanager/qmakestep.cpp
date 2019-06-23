@@ -115,9 +115,9 @@ QString QMakeStep::allArguments(const BaseQtVersion *v, ArgumentFlags flags) con
             }
         }
     }
-    FileName specArg = mkspec();
+    const QString specArg = mkspec();
     if (!userProvidedMkspec && !specArg.isEmpty())
-        arguments << "-spec" << specArg.toUserOutput();
+        arguments << "-spec" << QDir::toNativeSeparators(specArg);
 
     // Find out what flags we pass on to qmake
     arguments << bc->configCommandLineArguments();
@@ -182,7 +182,7 @@ bool QMakeStep::init()
     else
         workingDirectory = qmakeBc->buildDirectory().toString();
 
-    m_qmakeExecutable = qtVersion->qmakeCommand().toString();
+    m_qmakeExecutable = qtVersion->qmakeCommand();
     m_qmakeArguments = allArguments(qtVersion);
     m_runMakeQmake = (qtVersion->qtVersion() >= QtVersionNumber(5, 0 ,0));
 
@@ -223,7 +223,7 @@ bool QMakeStep::init()
 
     ProcessParameters *pp = processParameters();
     pp->setMacroExpander(qmakeBc->macroExpander());
-    pp->setWorkingDirectory(workingDirectory);
+    pp->setWorkingDirectory(Utils::FilePath::fromString(workingDirectory));
     pp->setEnvironment(qmakeBc->environment());
 
     setOutputParser(new QMakeParser);
@@ -234,7 +234,7 @@ bool QMakeStep::init()
     QTC_ASSERT(node, return false);
     QString proFile = node->filePath().toString();
 
-    QList<ProjectExplorer::Task> tasks = qtVersion->reportIssues(proFile, workingDirectory);
+    Tasks tasks = qtVersion->reportIssues(proFile, workingDirectory);
     Utils::sort(tasks);
 
     if (!tasks.isEmpty()) {
@@ -311,7 +311,7 @@ void QMakeStep::finish(bool success)
     runNextCommand();
 }
 
-void QMakeStep::startOneCommand(const QString &command, const QString &args)
+void QMakeStep::startOneCommand(const FilePath &command, const QString &args)
 {
     ProcessParameters *pp = processParameters();
     pp->setCommand(command);
@@ -343,7 +343,7 @@ void QMakeStep::runNextCommand()
     case State::RUN_MAKE_QMAKE_ALL:
         {
             auto *parser = new GnuMakeParser;
-            parser->setWorkingDirectory(processParameters()->workingDirectory());
+            parser->setWorkingDirectory(processParameters()->workingDirectory().toString());
             setOutputParser(parser);
             m_nextState = State::POST_PROCESS;
             startOneCommand(m_makeExecutable, m_makeArguments);
@@ -381,6 +381,16 @@ void QMakeStep::setExtraArguments(const QStringList &args)
         qmakeBuildConfiguration()->emitQMakeBuildConfigurationChanged();
         qmakeBuildConfiguration()->emitProFileEvaluateNeeded();
     }
+}
+
+QStringList QMakeStep::extraParserArguments() const
+{
+    return m_extraParserArgs;
+}
+
+void QMakeStep::setExtraParserArguments(const QStringList &args)
+{
+    m_extraParserArgs = args;
 }
 
 bool QMakeStep::linkQmlDebuggingLibrary() const
@@ -436,10 +446,10 @@ void QMakeStep::setSeparateDebugInfo(bool enable)
     qmakeBuildConfiguration()->emitProFileEvaluateNeeded();
 }
 
-QString QMakeStep::makeCommand() const
+FilePath QMakeStep::makeCommand() const
 {
-    auto *ms = qobject_cast<BuildStepList *>(parent())->firstOfType<MakeStep>();
-    return ms ? ms->effectiveMakeCommand() : QString();
+    auto ms = qobject_cast<BuildStepList *>(parent())->firstOfType<MakeStep>();
+    return ms ? ms->effectiveMakeCommand().executable() : FilePath();
 }
 
 QString QMakeStep::makeArguments(const QString &makefile) const
@@ -459,7 +469,7 @@ QString QMakeStep::effectiveQMakeCall() const
     QString qmake = qtVersion ? qtVersion->qmakeCommand().toUserOutput() : QString();
     if (qmake.isEmpty())
         qmake = tr("<no Qt version>");
-    QString make = makeCommand();
+    QString make = makeCommand().toString();
     if (make.isEmpty())
         make = tr("<no Make step found>");
 
@@ -476,7 +486,8 @@ QString QMakeStep::effectiveQMakeCall() const
 
 QStringList QMakeStep::parserArguments()
 {
-    QStringList result;
+    // NOTE: extra parser args placed before the other args intentionally
+    QStringList result = m_extraParserArgs;
     BaseQtVersion *qt = QtKitAspect::qtVersion(target()->kit());
     QTC_ASSERT(qt, return QStringList());
     for (QtcProcess::ConstArgIterator ait(allArguments(qt, ArgumentFlag::Expand)); ait.next(); ) {
@@ -491,14 +502,14 @@ QString QMakeStep::userArguments()
     return m_userArgs;
 }
 
-FileName QMakeStep::mkspec() const
+QString QMakeStep::mkspec() const
 {
     QString additionalArguments = m_userArgs;
     QtcProcess::addArgs(&additionalArguments, m_extraArgs);
     for (QtcProcess::ArgIterator ait(&additionalArguments); ait.next(); ) {
         if (ait.value() == "-spec") {
             if (ait.next())
-                return FileName::fromUserInput(ait.value());
+                return FilePath::fromUserInput(ait.value()).toString();
         }
     }
 

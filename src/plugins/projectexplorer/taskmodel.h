@@ -28,6 +28,7 @@
 #include <QSortFilterProxyModel>
 
 #include <QIcon>
+#include <QRegularExpression>
 
 #include "task.h"
 
@@ -53,7 +54,7 @@ public:
     QString categoryDisplayName(Core::Id categoryId) const;
     void addCategory(Core::Id categoryId, const QString &categoryName);
 
-    QList<Task> tasks(Core::Id categoryId = Core::Id()) const;
+    Tasks tasks(Core::Id categoryId = Core::Id()) const;
     void addTask(const Task &t);
     void removeTask(unsigned int id);
     void clearTasks(Core::Id categoryId = Core::Id());
@@ -110,7 +111,7 @@ private:
     };
 
     QHash<Core::Id,CategoryData> m_categories; // category id to data
-    QList<Task> m_tasks;   // all tasks (in order of id)
+    Tasks m_tasks;   // all tasks (in order of id)
 
     QHash<QString,bool> m_fileNotFound;
     QFont m_fileMeasurementFont;
@@ -143,6 +144,9 @@ public:
     bool hasFile(const QModelIndex &index) const
     { return taskModel()->hasFile(mapToSource(index)); }
 
+    void updateFilterProperties(const QString &filterText, Qt::CaseSensitivity caseSensitivity,
+                                bool isRegex);
+
 private:
     bool filterAcceptsRow(int source_row, const QModelIndex &source_parent) const override;
     bool filterAcceptsTask(const Task &task) const;
@@ -151,7 +155,11 @@ private:
     bool m_includeUnknowns;
     bool m_includeWarnings;
     bool m_includeErrors;
+    bool m_filterStringIsRegexp = false;
+    Qt::CaseSensitivity m_filterCaseSensitivity = Qt::CaseInsensitive;
     QList<Core::Id> m_categoryIds;
+    QString m_filterText;
+    QRegularExpression m_filterRegexp;
 };
 
 } // namespace Internal

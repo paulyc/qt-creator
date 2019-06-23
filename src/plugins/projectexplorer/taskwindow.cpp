@@ -289,6 +289,9 @@ TaskWindow::TaskWindow() : d(std::make_unique<TaskWindowPrivate>())
 
     d->m_categoriesButton->setMenu(d->m_categoriesMenu);
 
+    setupFilterUi("IssuesPane.Filter");
+    setFilteringEnabled(true);
+
     TaskHub *hub = TaskHub::instance();
     connect(hub, &TaskHub::categoryAdded, this, &TaskWindow::addCategory);
     connect(hub, &TaskHub::taskAdded, this, &TaskWindow::addTask);
@@ -355,7 +358,7 @@ void TaskWindow::delayedInitialization()
 
 QList<QWidget*> TaskWindow::toolBarWidgets() const
 {
-    return {d->m_filterWarningsButton, d->m_categoriesButton};
+    return {d->m_filterWarningsButton, d->m_categoriesButton, filterWidget()};
 }
 
 QWidget *TaskWindow::outputWidget(QWidget *)
@@ -498,7 +501,7 @@ void TaskWindow::triggerDefaultHandler(const QModelIndex &index)
 
     if (!task.file.isEmpty() && !task.file.toFileInfo().isAbsolute()
             && !task.fileCandidates.empty()) {
-        const Utils::FileName userChoice = Utils::chooseFileFromList(task.fileCandidates);
+        const Utils::FilePath userChoice = Utils::chooseFileFromList(task.fileCandidates);
         if (!userChoice.isEmpty()) {
             task.file = userChoice;
             updatedTaskFileName(task.taskId, task.file.toString());
@@ -662,6 +665,11 @@ void TaskWindow::goToPrev()
     }
     d->m_listview->setCurrentIndex(currentIndex);
     triggerDefaultHandler(currentIndex);
+}
+
+void TaskWindow::updateFilter()
+{
+    d->m_filter->updateFilterProperties(filterText(), filterCaseSensitivity(), filterUsesRegexp());
 }
 
 bool TaskWindow::canNavigate() const

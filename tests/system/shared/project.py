@@ -273,23 +273,14 @@ def createProject_Qt_Console(path, projectName, checks = True, buildSystem = Non
     if checks:
         __verifyFileCreation__(path, expectedFiles)
 
-def createNewQtQuickApplication(workingDir, projectName = None,
+def createNewQtQuickApplication(workingDir, projectName=None,
                                 targets=Targets.desktopTargetClasses(), minimumQtVersion="5.6",
-                                withControls = False, fromWelcome = False, buildSystem = None):
-    if withControls:
-        template = "Qt Quick Application - Swipe"
-    else:
-        template = "Qt Quick Application - Empty"
+                                template="Qt Quick Application - Empty", fromWelcome=False,
+                                buildSystem=None):
     available = __createProjectOrFileSelectType__("  Application", template, fromWelcome)
     projectName = __createProjectSetNameAndPath__(workingDir, projectName)
     __handleBuildSystem__(buildSystem)
-    if withControls:
-        requiredQt = "5.7"
-        # TODO use parameter to define style to choose
-        test.log("Using default controls style")
-        clickButton(waitForObject(":Next_QPushButton"))
-    else:
-        requiredQt = __createProjectHandleQtQuickSelection__(minimumQtVersion)
+    requiredQt = __createProjectHandleQtQuickSelection__(minimumQtVersion)
     __modifyAvailableTargets__(available, requiredQt)
     checkedTargets = __chooseTargets__(targets, available)
     snooze(1)
@@ -463,30 +454,29 @@ def __createProjectHandleClassInformation__(className, baseClass=None):
 
 def waitForProcessRunning(running=True):
     outputButton = waitForObject(":Qt Creator_AppOutput_Core::Internal::OutputPaneToggleButton")
-    if not waitFor("outputButton.checked", 10000):
+    if not waitFor("outputButton.checked", 5000):
         ensureChecked(outputButton)
     waitFor("object.exists(':Qt Creator.ReRun_QToolButton')", 20000)
     reRunButton = findObject(":Qt Creator.ReRun_QToolButton")
     waitFor("object.exists(':Qt Creator.Stop_QToolButton')", 20000)
     stopButton = findObject(":Qt Creator.Stop_QToolButton")
-    return waitFor("(reRunButton.enabled != running) and (stopButton.enabled == running)", 10000)
+    return waitFor("(reRunButton.enabled != running) and (stopButton.enabled == running)", 5000)
 
 # run and close an application
 # returns None if the build failed, False if the subprocess did not start, and True otherwise
-def runAndCloseApp(isQtQuickUI=False):
+def runAndCloseApp():
     runButton = waitForObject(":*Qt Creator.Run_Core::Internal::FancyToolButton")
     clickButton(runButton)
-    if not isQtQuickUI:
-        waitForCompile(300000)
-        buildSucceeded = checkLastBuild()
-        ensureChecked(waitForObject(":Qt Creator_AppOutput_Core::Internal::OutputPaneToggleButton"))
-        if not buildSucceeded:
-            test.fatal("Build inside run wasn't successful - leaving test")
-            return None
+    waitForCompile(300000)
+    buildSucceeded = checkLastBuild()
+    ensureChecked(waitForObject(":Qt Creator_AppOutput_Core::Internal::OutputPaneToggleButton"))
+    if not buildSucceeded:
+        test.fatal("Build inside run wasn't successful - leaving test")
+        return None
     if not waitForProcessRunning():
         test.fatal("Couldn't start application - leaving test")
         return False
-    __closeSubprocessByPushingStop__(isQtQuickUI)
+    __closeSubprocessByPushingStop__(False)
     return True
 
 def __closeSubprocessByPushingStop__(isQtQuickUI):

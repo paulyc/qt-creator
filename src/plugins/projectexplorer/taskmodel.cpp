@@ -86,12 +86,12 @@ void TaskModel::addCategory(Core::Id categoryId, const QString &categoryName)
     m_categories.insert(categoryId, data);
 }
 
-QList<Task> TaskModel::tasks(Core::Id categoryId) const
+Tasks TaskModel::tasks(Core::Id categoryId) const
 {
     if (!categoryId.isValid())
         return m_tasks;
 
-    QList<Task> taskList;
+    Tasks taskList;
     foreach (const Task &t, m_tasks) {
         if (t.category == categoryId)
             taskList.append(t);
@@ -147,7 +147,7 @@ void TaskModel::updateTaskFileName(unsigned int id, const QString &fileName)
     int i = rowForId(id);
     QTC_ASSERT(i != -1, return);
     if (m_tasks.at(i).taskId == id) {
-        m_tasks[i].file = Utils::FileName::fromString(fileName);
+        m_tasks[i].file = Utils::FilePath::fromString(fileName);
         emit dataChanged(index(i, 0), index(i, 0));
     }
 }
@@ -341,6 +341,25 @@ void TaskFilterModel::setFilterIncludesWarnings(bool b)
     invalidateFilter();
 }
 
+void TaskFilterModel::updateFilterProperties(const QString &filterText,
+                                             Qt::CaseSensitivity caseSensitivity, bool isRegexp)
+{
+    if (filterText == m_filterText && m_filterCaseSensitivity == caseSensitivity
+            && m_filterStringIsRegexp == isRegexp) {
+        return;
+    }
+    m_filterText = filterText;
+    m_filterCaseSensitivity = caseSensitivity;
+    m_filterStringIsRegexp = isRegexp;
+    if (m_filterStringIsRegexp) {
+        m_filterRegexp.setPattern(m_filterText);
+        m_filterRegexp.setPatternOptions(m_filterCaseSensitivity == Qt::CaseInsensitive
+                                         ? QRegularExpression::CaseInsensitiveOption
+                                         : QRegularExpression::NoPatternOption);
+    }
+    invalidateFilter();
+}
+
 bool TaskFilterModel::filterAcceptsRow(int source_row, const QModelIndex &source_parent) const
 {
     Q_UNUSED(source_parent);
@@ -362,8 +381,17 @@ bool TaskFilterModel::filterAcceptsTask(const Task &task) const
         break;
     }
 
-    if (m_categoryIds.contains(task.category))
+    if (accept && m_categoryIds.contains(task.category))
         accept = false;
+
+    if (accept && !m_filterText.isEmpty()) {
+        const auto accepts = [this](const QString &s) {
+            return m_filterStringIsRegexp ? m_filterRegexp.isValid() && s.contains(m_filterRegexp)
+                                          : s.contains(m_filterText, m_filterCaseSensitivity);
+        };
+        if (!accepts(task.file.toString()) && !accepts(task.description))
+            accept = false;
+    }
 
     return accept;
 }

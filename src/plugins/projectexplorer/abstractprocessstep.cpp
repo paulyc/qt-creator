@@ -48,6 +48,8 @@
 #include <algorithm>
 #include <memory>
 
+using namespace Utils;
+
 namespace ProjectExplorer {
 
 /*!
@@ -200,7 +202,7 @@ bool AbstractProcessStep::init()
 
 void AbstractProcessStep::doRun()
 {
-    QDir wd(d->m_param.effectiveWorkingDirectory());
+    QDir wd(d->m_param.effectiveWorkingDirectory().toString());
     if (!wd.exists()) {
         if (!wd.mkpath(wd.absolutePath())) {
             emit addOutput(tr("Could not create directory \"%1\"")
@@ -211,8 +213,10 @@ void AbstractProcessStep::doRun()
         }
     }
 
-    QString effectiveCommand = d->m_param.effectiveCommand();
-    if (!QFileInfo::exists(effectiveCommand)) {
+    const CommandLine effectiveCommand(d->m_param.effectiveCommand(),
+                                       d->m_param.effectiveArguments(),
+                                       CommandLine::Raw);
+    if (!effectiveCommand.executable().exists()) {
         processStartupFailed();
         finish(false);
         return;
@@ -222,7 +226,7 @@ void AbstractProcessStep::doRun()
     d->m_process->setUseCtrlCStub(Utils::HostOsInfo::isWindowsHost());
     d->m_process->setWorkingDirectory(wd.absolutePath());
     d->m_process->setEnvironment(d->m_param.environment());
-    d->m_process->setCommand(effectiveCommand, d->m_param.effectiveArguments());
+    d->m_process->setCommand(effectiveCommand);
 
     connect(d->m_process.get(), &QProcess::readyReadStandardOutput,
             this, &AbstractProcessStep::processReadyReadStdOutput);
@@ -275,7 +279,7 @@ void AbstractProcessStep::cleanUp(QProcess *process)
 void AbstractProcessStep::processStarted()
 {
     emit addOutput(tr("Starting: \"%1\" %2")
-                   .arg(QDir::toNativeSeparators(d->m_param.effectiveCommand()),
+                   .arg(QDir::toNativeSeparators(d->m_param.effectiveCommand().toString()),
                         d->m_param.prettyArguments()),
                    BuildStep::OutputFormat::NormalMessage);
 }
@@ -291,7 +295,7 @@ void AbstractProcessStep::processFinished(int exitCode, QProcess::ExitStatus sta
     if (d->m_outputParserChain)
         d->m_outputParserChain->flush();
 
-    QString command = QDir::toNativeSeparators(d->m_param.effectiveCommand());
+    QString command = QDir::toNativeSeparators(d->m_param.effectiveCommand().toString());
     if (status == QProcess::NormalExit && exitCode == 0) {
         emit addOutput(tr("The process \"%1\" exited normally.").arg(command),
                        BuildStep::OutputFormat::NormalMessage);
@@ -313,7 +317,7 @@ void AbstractProcessStep::processFinished(int exitCode, QProcess::ExitStatus sta
 void AbstractProcessStep::processStartupFailed()
 {
     emit addOutput(tr("Could not start process \"%1\" %2")
-                   .arg(QDir::toNativeSeparators(d->m_param.effectiveCommand()),
+                   .arg(QDir::toNativeSeparators(d->m_param.effectiveCommand().toString()),
                         d->m_param.prettyArguments()),
                    BuildStep::OutputFormat::ErrorMessage);
 }
@@ -432,7 +436,7 @@ void AbstractProcessStep::taskAdded(const Task &task, int linkedOutputLines, int
         while (filePath.startsWith("../"))
             filePath.remove(0, 3);
         bool found = false;
-        const Utils::FileNameList candidates
+        const Utils::FilePathList candidates
                 = d->m_fileFinder.findFile(QUrl::fromLocalFile(filePath), &found);
         if (found && candidates.size() == 1)
             editable.file = candidates.first();

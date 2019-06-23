@@ -293,7 +293,7 @@ HelpPluginPrivate::HelpPluginPrivate()
     cmd = ActionManager::registerAction(action, "Help.ReportBug");
     ActionManager::actionContainer(Core::Constants::M_HELP)->addAction(cmd, Core::Constants::G_HELP_SUPPORT);
     connect(action, &QAction::triggered, this, [] {
-        QDesktopServices::openUrl(QUrl("https://bugreports.qt.io"));
+        QDesktopServices::openUrl(QUrl("https://bugreports.qt.io/secure/CreateIssue.jspa?pid=10512"));
     });
 
     action = new QAction(HelpPlugin::tr("System Information..."), this);
@@ -400,7 +400,7 @@ void HelpPluginPrivate::saveExternalWindowSettings()
         return;
     m_externalWindowState = m_externalWindow->geometry();
     QSettings *settings = ICore::settings();
-    settings->setValue(kExternalWindowStateKey, qVariantFromValue(m_externalWindowState));
+    settings->setValue(kExternalWindowStateKey, QVariant::fromValue(m_externalWindowState));
 }
 
 HelpWidget *HelpPluginPrivate::createHelpWidget(const Context &context, HelpWidget::WidgetStyle style)

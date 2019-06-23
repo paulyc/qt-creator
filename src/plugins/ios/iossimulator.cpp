@@ -51,35 +51,17 @@ IosSimulator::IosSimulator(Core::Id id)
     setType(Constants::IOS_SIMULATOR_TYPE);
     setMachineType(IDevice::Emulator);
     setDisplayName(QCoreApplication::translate("Ios::Internal::IosSimulator", "iOS Simulator"));
+    setDisplayType(QCoreApplication::translate("Ios::Internal::IosSimulator", "iOS Simulator"));
     setDeviceState(DeviceReadyToUse);
 }
 
 IosSimulator::IosSimulator()
-    : m_lastPort(Constants::IOS_SIMULATOR_PORT_START)
-{
-    setupId(IDevice::AutoDetected, Constants::IOS_SIMULATOR_DEVICE_ID);
-    setType(Constants::IOS_SIMULATOR_TYPE);
-    setMachineType(IDevice::Emulator);
-    setDisplayName(QCoreApplication::translate("Ios::Internal::IosSimulator", "iOS Simulator"));
-    setDeviceState(DeviceReadyToUse);
-}
-
-IosSimulator::IosSimulator(const IosSimulator &other)
-    : IDevice(other), m_lastPort(other.m_lastPort)
-{
-    setDisplayName(QCoreApplication::translate("Ios::Internal::IosSimulator", "iOS Simulator"));
-    setDeviceState(DeviceReadyToUse);
-}
-
+    : IosSimulator(Constants::IOS_SIMULATOR_DEVICE_ID)
+{}
 
 IDevice::DeviceInfo IosSimulator::deviceInformation() const
 {
     return IDevice::DeviceInfo();
-}
-
-QString IosSimulator::displayType() const
-{
-    return QCoreApplication::translate("Ios::Internal::IosSimulator", "iOS Simulator");
 }
 
 IDeviceWidget *IosSimulator::createWidget()
@@ -90,11 +72,6 @@ IDeviceWidget *IosSimulator::createWidget()
 DeviceProcessSignalOperation::Ptr IosSimulator::signalOperation() const
 {
     return DeviceProcessSignalOperation::Ptr();
-}
-
-IDevice::Ptr IosSimulator::clone() const
-{
-    return IDevice::Ptr(new IosSimulator(*this));
 }
 
 Utils::Port IosSimulator::nextPort() const

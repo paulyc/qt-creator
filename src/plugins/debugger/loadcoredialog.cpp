@@ -258,7 +258,8 @@ AttachCoreDialog::AttachCoreDialog(QWidget *parent)
     d->buttonBox->button(QDialogButtonBox::Ok)->setDefault(true);
     d->buttonBox->button(QDialogButtonBox::Ok)->setEnabled(false);
 
-    d->kitChooser = new DebuggerKitChooser(DebuggerKitChooser::AnyDebugging, this);
+    d->kitChooser = new KitChooser(this);
+    d->kitChooser->setShowIcons(true);
     d->kitChooser->populate();
 
     d->forceLocalCheckBox = new QCheckBox(this);
@@ -370,9 +371,9 @@ void AttachCoreDialog::coreFileChanged(const QString &core)
         Runnable debugger = DebuggerKitAspect::runnable(k);
         CoreInfo cinfo = CoreInfo::readExecutableNameFromCore(debugger, core);
         if (!cinfo.foundExecutableName.isEmpty())
-            d->symbolFileName->setFileName(FileName::fromString(cinfo.foundExecutableName));
+            d->symbolFileName->setFileName(FilePath::fromString(cinfo.foundExecutableName));
         else if (!d->symbolFileName->isValid() && !cinfo.rawStringFromCore.isEmpty())
-            d->symbolFileName->setFileName(FileName::fromString(cinfo.rawStringFromCore));
+            d->symbolFileName->setFileName(FilePath::fromString(cinfo.rawStringFromCore));
     }
     changed();
 }
@@ -415,9 +416,9 @@ QString AttachCoreDialog::localCoreFile() const
     return d->localCoreFileName->path();
 }
 
-QString AttachCoreDialog::symbolFile() const
+FilePath AttachCoreDialog::symbolFile() const
 {
-    return d->symbolFileName->path();
+    return d->symbolFileName->fileName();
 }
 
 void AttachCoreDialog::setSymbolFile(const QString &symbolFileName)

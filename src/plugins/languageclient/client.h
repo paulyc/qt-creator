@@ -28,8 +28,10 @@
 #include "documentsymbolcache.h"
 #include "dynamiccapabilities.h"
 #include "languageclientcompletionassist.h"
+#include "languageclientfunctionhint.h"
 #include "languageclientquickfix.h"
 #include "languageclientsettings.h"
+#include "languageclienthoverhandler.h"
 
 #include <coreplugin/id.h>
 #include <coreplugin/messagemanager.h>
@@ -42,6 +44,8 @@
 #include <languageserverprotocol/messages.h>
 #include <languageserverprotocol/shutdownmessages.h>
 #include <languageserverprotocol/textsynchronization.h>
+
+#include <texteditor/semantichighlighter.h>
 
 #include <QBuffer>
 #include <QHash>
@@ -96,7 +100,10 @@ public:
     bool documentOpen(const Core::IDocument *document) const;
     void documentContentsSaved(Core::IDocument *document);
     void documentWillSave(Core::IDocument *document);
-    void documentContentsChanged(Core::IDocument *document);
+    void documentContentsChanged(TextEditor::TextDocument *document,
+                                 int position,
+                                 int charsRemoved,
+                                 int charsAdded);
     void registerCapabilities(const QList<LanguageServerProtocol::Registration> &registrations);
     void unregisterCapabilities(const QList<LanguageServerProtocol::Unregistration> &unregistrations);
     bool findLinkAt(LanguageServerProtocol::GotoDefinitionRequest &request);
@@ -124,7 +131,7 @@ public:
 
     void setSupportedLanguage(const LanguageFilter &filter);
     bool isSupportedDocument(const Core::IDocument *document) const;
-    bool isSupportedFile(const Utils::FileName &filePath, const QString &mimeType) const;
+    bool isSupportedFile(const Utils::FilePath &filePath, const QString &mimeType) const;
     bool isSupportedUri(const LanguageServerProtocol::DocumentUri &uri) const;
 
     void setName(const QString &name) { m_displayName = name; }
@@ -152,6 +159,8 @@ public:
     const DynamicCapabilities &dynamicCapabilities() const;
     const BaseClientInterface *clientInterface() const;
     DocumentSymbolCache *documentSymbolCache();
+    HoverHandler *hoverHandler();
+    void rehighlight();
 
 signals:
     void initialized(LanguageServerProtocol::ServerCapabilities capabilities);
@@ -168,6 +177,7 @@ private:
                       const LanguageServerProtocol::IContent *content);
 
     void handleDiagnostics(const LanguageServerProtocol::PublishDiagnosticsParams &params);
+    void handleSemanticHighlight(const LanguageServerProtocol::SemanticHighlightingParams &params);
 
     void intializeCallback(const LanguageServerProtocol::InitializeRequest::Response &initResponse);
     void shutDownCallback(const LanguageServerProtocol::ShutdownRequest::Response &shutdownResponse);
@@ -190,18 +200,21 @@ private:
     QHash<QByteArray, ContentHandler> m_contentHandler;
     QString m_displayName;
     LanguageFilter m_languagFilter;
-    QList<Utils::FileName> m_openedDocument;
+    QMap<Utils::FilePath, QString> m_openedDocument;
     Core::Id m_id;
     LanguageServerProtocol::ServerCapabilities m_serverCapabilities;
     DynamicCapabilities m_dynamicCapabilities;
     LanguageClientCompletionAssistProvider m_completionProvider;
+    FunctionHintAssistProvider m_functionHintProvider;
     LanguageClientQuickFixProvider m_quickFixProvider;
-    QSet<TextEditor::TextDocument *> m_resetAssistProvider;
+    QMap<TextEditor::TextDocument *, QPointer<TextEditor::CompletionAssistProvider>> m_resetAssistProvider;
     QHash<LanguageServerProtocol::DocumentUri, LanguageServerProtocol::MessageId> m_highlightRequests;
     int m_restartsLeft = 5;
     QScopedPointer<BaseClientInterface> m_clientInterface;
     QMap<LanguageServerProtocol::DocumentUri, QList<TextMark *>> m_diagnostics;
     DocumentSymbolCache m_documentSymbolCache;
+    HoverHandler m_hoverHandler;
+    QHash<LanguageServerProtocol::DocumentUri, TextEditor::HighlightingResults> m_highlights;
     const ProjectExplorer::Project *m_project = nullptr;
 };
 

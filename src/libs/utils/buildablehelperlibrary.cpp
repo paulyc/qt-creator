@@ -46,7 +46,7 @@ QString BuildableHelperLibrary::qtChooserToQmakePath(const QString &path)
     const QString toolDir = QLatin1String("QTTOOLDIR=\"");
     SynchronousProcess proc;
     proc.setTimeoutS(1);
-    SynchronousProcessResponse response = proc.runBlocking(path, QStringList(QLatin1String("-print-env")));
+    SynchronousProcessResponse response = proc.runBlocking({FilePath::fromString(path), {"-print-env"}});
     if (response.result != SynchronousProcessResponse::Finished)
         return QString();
     const QString output = response.stdOut();
@@ -73,17 +73,17 @@ static bool isQmake(const QString &path)
     return !BuildableHelperLibrary::qtVersionForQMake(fi.absoluteFilePath()).isEmpty();
 }
 
-static FileName findQmakeInDir(const FileName &path)
+static FilePath findQmakeInDir(const FilePath &path)
 {
     if (path.isEmpty())
-        return FileName();
+        return FilePath();
 
     const QString qmake = "qmake";
     QDir dir(path.toString());
     if (dir.exists(qmake)) {
         const QString qmakePath = dir.absoluteFilePath(qmake);
         if (isQmake(qmakePath))
-            return FileName::fromString(qmakePath);
+            return FilePath::fromString(qmakePath);
     }
 
     // Prefer qmake-qt5 to qmake-qt4 by sorting the filenames in reverse order.
@@ -94,26 +94,26 @@ static FileName findQmakeInDir(const FileName &path)
         if (fi.fileName() == qmake)
             continue;
         if (isQmake(fi.absoluteFilePath()))
-            return FileName(fi);
+            return FilePath::fromFileInfo(fi);
     }
-    return FileName();
+    return FilePath();
 }
 
-FileName BuildableHelperLibrary::findSystemQt(const Environment &env)
+FilePath BuildableHelperLibrary::findSystemQt(const Environment &env)
 {
-    const FileNameList list = findQtsInEnvironment(env, 1);
-    return list.size() == 1 ? list.first() : FileName();
+    const FilePathList list = findQtsInEnvironment(env, 1);
+    return list.size() == 1 ? list.first() : FilePath();
 }
 
-FileNameList BuildableHelperLibrary::findQtsInEnvironment(const Environment &env, int maxCount)
+FilePathList BuildableHelperLibrary::findQtsInEnvironment(const Environment &env, int maxCount)
 {
-    FileNameList qmakeList;
+    FilePathList qmakeList;
     std::set<QString> canonicalEnvPaths;
-    const FileNameList paths = env.path();
-    for (const FileName &path : paths) {
+    const FilePathList paths = env.path();
+    for (const FilePath &path : paths) {
         if (!canonicalEnvPaths.insert(path.toFileInfo().canonicalFilePath()).second)
             continue;
-        const FileName qmake = findQmakeInDir(path);
+        const FilePath qmake = findQmakeInDir(path);
         if (qmake.isEmpty())
             continue;
         qmakeList << qmake;
@@ -130,7 +130,7 @@ QString BuildableHelperLibrary::qtVersionForQMake(const QString &qmakePath)
 
     SynchronousProcess qmake;
     qmake.setTimeoutS(5);
-    SynchronousProcessResponse response = qmake.runBlocking(qmakePath, QStringList(QLatin1String("--version")));
+    SynchronousProcessResponse response = qmake.runBlocking({FilePath::fromString(qmakePath), {"--version"}});
     if (response.result != SynchronousProcessResponse::Finished) {
         qWarning() << response.exitMessage(qmakePath, 5);
         return QString();
@@ -189,7 +189,7 @@ bool BuildableHelperLibrary::copyFiles(const QString &sourcePath,
                                      QString *errorMessage)
 {
     // try remove the directory
-    if (!FileUtils::removeRecursively(FileName::fromString(targetDirectory), errorMessage))
+    if (!FileUtils::removeRecursively(FilePath::fromString(targetDirectory), errorMessage))
         return false;
     if (!QDir().mkpath(targetDirectory)) {
         *errorMessage = QCoreApplication::translate("ProjectExplorer::DebuggingHelperLibrary", "The target directory %1 could not be created.").arg(targetDirectory);
@@ -220,7 +220,7 @@ bool BuildableHelperLibrary::copyFiles(const QString &sourcePath,
 
 // Helper: Run a build process with merged stdout/stderr
 static inline bool runBuildProcessI(QProcess &proc,
-                                    const FileName &binary,
+                                    const FilePath &binary,
                                     const QStringList &args,
                                     int timeoutS,
                                     bool ignoreNonNullExitCode,
@@ -261,7 +261,7 @@ static inline bool runBuildProcessI(QProcess &proc,
 
 // Run a build process with merged stdout/stderr and qWarn about errors.
 static bool runBuildProcess(QProcess &proc,
-                            const FileName &binary,
+                            const FilePath &binary,
                             const QStringList &args,
                             int timeoutS,
                             bool ignoreNonNullExitCode,
@@ -300,7 +300,7 @@ bool BuildableHelperLibrary::buildHelper(const BuildHelperArguments &arguments,
                                                                               arguments.directory));
     log->append(newline);
 
-    const FileName makeFullPath = arguments.environment.searchInPath(arguments.makeCommand);
+    const FilePath makeFullPath = arguments.environment.searchInPath(arguments.makeCommand);
     if (QFileInfo::exists(arguments.directory + QLatin1String("/Makefile"))) {
         if (makeFullPath.isEmpty()) {
             *errorMessage = QCoreApplication::translate("ProjectExplorer::DebuggingHelperLibrary",

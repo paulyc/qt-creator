@@ -32,15 +32,17 @@
 #include "runconfiguration.h"
 #include "target.h"
 
-#include <utils/utilsicons.h>
+#include <utils/detailsbutton.h>
 #include <utils/fancylineedit.h>
 #include <utils/pathchooser.h>
 #include <utils/qtcprocess.h>
+#include <utils/utilsicons.h>
 
 #include <QCheckBox>
 #include <QLabel>
 #include <QLineEdit>
 #include <QFormLayout>
+#include <QPlainTextEdit>
 #include <QToolButton>
 
 using namespace Utils;
@@ -131,8 +133,7 @@ bool TerminalAspect::isUserSet() const
     \class ProjectExplorer::WorkingDirectoryAspect
 */
 
-WorkingDirectoryAspect::WorkingDirectoryAspect(EnvironmentAspect *envAspect)
-    : m_envAspect(envAspect)
+WorkingDirectoryAspect::WorkingDirectoryAspect()
 {
     setDisplayName(tr("Working Directory"));
     setId("WorkingDirectoryAspect");
@@ -142,11 +143,6 @@ WorkingDirectoryAspect::WorkingDirectoryAspect(EnvironmentAspect *envAspect)
 void WorkingDirectoryAspect::addToConfigurationLayout(QFormLayout *layout)
 {
     QTC_CHECK(!m_chooser);
-    m_resetButton = new QToolButton(layout->parentWidget());
-    m_resetButton->setToolTip(tr("Reset to Default"));
-    m_resetButton->setIcon(Utils::Icons::RESET.icon());
-    connect(m_resetButton.data(), &QAbstractButton::clicked, this, &WorkingDirectoryAspect::resetPath);
-
     m_chooser = new PathChooser(layout->parentWidget());
     m_chooser->setHistoryCompleter(settingsKey());
     m_chooser->setExpectedKind(Utils::PathChooser::Directory);
@@ -159,6 +155,10 @@ void WorkingDirectoryAspect::addToConfigurationLayout(QFormLayout *layout)
                 m_resetButton->setEnabled(m_workingDirectory != m_defaultWorkingDirectory);
             });
 
+    m_resetButton = new QToolButton(layout->parentWidget());
+    m_resetButton->setToolTip(tr("Reset to Default"));
+    m_resetButton->setIcon(Utils::Icons::RESET.icon());
+    connect(m_resetButton.data(), &QAbstractButton::clicked, this, &WorkingDirectoryAspect::resetPath);
     m_resetButton->setEnabled(m_workingDirectory != m_defaultWorkingDirectory);
 
     if (m_envAspect) {
@@ -174,6 +174,11 @@ void WorkingDirectoryAspect::addToConfigurationLayout(QFormLayout *layout)
     layout->addRow(tr("Working directory:"), hbox);
 }
 
+void WorkingDirectoryAspect::acquaintSiblings(const ProjectConfigurationAspects &siblings)
+{
+    m_envAspect = siblings.aspect<EnvironmentAspect>();
+}
+
 QString WorkingDirectoryAspect::keyForDefaultWd() const
 {
     return settingsKey() + ".default";
@@ -186,8 +191,8 @@ void WorkingDirectoryAspect::resetPath()
 
 void WorkingDirectoryAspect::fromMap(const QVariantMap &map)
 {
-    m_workingDirectory = FileName::fromString(map.value(settingsKey()).toString());
-    m_defaultWorkingDirectory = FileName::fromString(map.value(keyForDefaultWd()).toString());
+    m_workingDirectory = FilePath::fromString(map.value(settingsKey()).toString());
+    m_defaultWorkingDirectory = FilePath::fromString(map.value(keyForDefaultWd()).toString());
 
     if (m_workingDirectory.isEmpty())
         m_workingDirectory = m_defaultWorkingDirectory;
@@ -204,32 +209,32 @@ void WorkingDirectoryAspect::toMap(QVariantMap &data) const
     data.insert(keyForDefaultWd(), m_defaultWorkingDirectory.toString());
 }
 
-FileName WorkingDirectoryAspect::workingDirectory(const MacroExpander *expander) const
+FilePath WorkingDirectoryAspect::workingDirectory(const MacroExpander *expander) const
 {
     const Utils::Environment env = m_envAspect ? m_envAspect->environment()
                                                : Utils::Environment::systemEnvironment();
     QString workingDir = m_workingDirectory.toUserOutput();
     if (expander)
         workingDir = expander->expandProcessArgs(workingDir);
-    return FileName::fromString(PathChooser::expandedDirectory(workingDir, env, QString()));
+    return FilePath::fromString(PathChooser::expandedDirectory(workingDir, env, QString()));
 }
 
-FileName WorkingDirectoryAspect::defaultWorkingDirectory() const
+FilePath WorkingDirectoryAspect::defaultWorkingDirectory() const
 {
     return m_defaultWorkingDirectory;
 }
 
-FileName WorkingDirectoryAspect::unexpandedWorkingDirectory() const
+FilePath WorkingDirectoryAspect::unexpandedWorkingDirectory() const
 {
     return m_workingDirectory;
 }
 
-void WorkingDirectoryAspect::setDefaultWorkingDirectory(const FileName &defaultWorkingDir)
+void WorkingDirectoryAspect::setDefaultWorkingDirectory(const FilePath &defaultWorkingDir)
 {
     if (defaultWorkingDir == m_defaultWorkingDirectory)
         return;
 
-    Utils::FileName oldDefaultDir = m_defaultWorkingDirectory;
+    Utils::FilePath oldDefaultDir = m_defaultWorkingDirectory;
     m_defaultWorkingDirectory = defaultWorkingDir;
     if (m_chooser)
         m_chooser->setBaseFileName(m_defaultWorkingDirectory);
@@ -261,7 +266,13 @@ ArgumentsAspect::ArgumentsAspect()
 QString ArgumentsAspect::arguments(const MacroExpander *expander) const
 {
     QTC_ASSERT(expander, return m_arguments);
-    return expander->expandProcessArgs(m_arguments);
+    if (m_currentlyExpanding)
+        return m_arguments;
+
+    m_currentlyExpanding = true;
+    const QString expanded = expander->expandProcessArgs(m_arguments);
+    m_currentlyExpanding = false;
+    return expanded;
 }
 
 QString ArgumentsAspect::unexpandedArguments() const
@@ -277,6 +288,8 @@ void ArgumentsAspect::setArguments(const QString &arguments)
     }
     if (m_chooser && m_chooser->text() != arguments)
         m_chooser->setText(arguments);
+    if (m_multiLineChooser && m_multiLineChooser->toPlainText() != arguments)
+        m_multiLineChooser->setPlainText(arguments);
 }
 
 void ArgumentsAspect::fromMap(const QVariantMap &map)
@@ -288,25 +301,77 @@ void ArgumentsAspect::fromMap(const QVariantMap &map)
     else
         m_arguments = args.toString();
 
-    if (m_chooser)
+    m_multiLine = map.value(settingsKey() + ".multi", false).toBool();
+
+    if (m_multiLineButton)
+        m_multiLineButton->setChecked(m_multiLine);
+    if (!m_multiLine && m_chooser)
         m_chooser->setText(m_arguments);
+    if (m_multiLine && m_multiLineChooser)
+        m_multiLineChooser->setPlainText(m_arguments);
 }
 
 void ArgumentsAspect::toMap(QVariantMap &map) const
 {
     map.insert(settingsKey(), m_arguments);
+    map.insert(settingsKey() + ".multi", m_multiLine);
+}
+
+QWidget *ArgumentsAspect::setupChooser()
+{
+    if (m_multiLine) {
+        if (!m_multiLineChooser) {
+            m_multiLineChooser = new QPlainTextEdit;
+            connect(m_multiLineChooser.data(), &QPlainTextEdit::textChanged,
+                    this, [this] { setArguments(m_multiLineChooser->toPlainText()); });
+        }
+        m_multiLineChooser->setPlainText(m_arguments);
+        return m_multiLineChooser.data();
+    }
+    if (!m_chooser) {
+        m_chooser = new FancyLineEdit;
+        m_chooser->setHistoryCompleter(settingsKey());
+        connect(m_chooser.data(), &QLineEdit::textChanged, this, &ArgumentsAspect::setArguments);
+    }
+    m_chooser->setText(m_arguments);
+    return m_chooser.data();
 }
 
 void ArgumentsAspect::addToConfigurationLayout(QFormLayout *layout)
 {
-    QTC_CHECK(!m_chooser);
-    m_chooser = new FancyLineEdit(layout->parentWidget());
-    m_chooser->setHistoryCompleter(settingsKey());
-    m_chooser->setText(m_arguments);
+    QTC_CHECK(!m_chooser && !m_multiLineChooser && !m_multiLineButton);
 
-    connect(m_chooser.data(), &QLineEdit::textChanged, this, &ArgumentsAspect::setArguments);
-
-    layout->addRow(tr("Command line arguments:"), m_chooser);
+    const auto container = new QWidget;
+    const auto containerLayout = new QHBoxLayout(container);
+    containerLayout->setContentsMargins(0, 0, 0, 0);
+    containerLayout->addWidget(setupChooser());
+    m_multiLineButton = new ExpandButton;
+    m_multiLineButton->setToolTip(tr("Toggle multi-line mode"));
+    m_multiLineButton->setChecked(m_multiLine);
+    connect(m_multiLineButton, &QCheckBox::clicked, this, [this](bool checked) {
+        if (m_multiLine == checked)
+            return;
+        m_multiLine = checked;
+        setupChooser();
+        QWidget *oldWidget = nullptr;
+        QWidget *newWidget = nullptr;
+        if (m_multiLine) {
+            oldWidget = m_chooser.data();
+            newWidget = m_multiLineChooser.data();
+        } else {
+            oldWidget = m_multiLineChooser.data();
+            newWidget = m_chooser.data();
+        }
+        QTC_ASSERT(!oldWidget == !newWidget, return);
+        if (oldWidget) {
+            QTC_ASSERT(oldWidget->parentWidget()->layout(), return);
+            oldWidget->parentWidget()->layout()->replaceWidget(oldWidget, newWidget);
+            delete oldWidget;
+        }
+    });
+    containerLayout->addWidget(m_multiLineButton);
+    containerLayout->setAlignment(m_multiLineButton, Qt::AlignTop);
+    layout->addRow(tr("Command line arguments:"), container);
 }
 
 /*!
@@ -377,7 +442,7 @@ void ExecutableAspect::makeOverridable(const QString &overridingKey, const QStri
             this, &ExecutableAspect::changed);
 }
 
-FileName ExecutableAspect::executable() const
+FilePath ExecutableAspect::executable() const
 {
     if (m_alternativeExecutable && m_alternativeExecutable->isChecked())
         return m_alternativeExecutable->fileName();
@@ -402,7 +467,7 @@ void ExecutableAspect::setPlaceHolderText(const QString &placeHolderText)
     m_executable.setPlaceHolderText(placeHolderText);
 }
 
-void ExecutableAspect::setExecutable(const FileName &executable)
+void ExecutableAspect::setExecutable(const FilePath &executable)
 {
    m_executable.setValue(executable.toString());
 }

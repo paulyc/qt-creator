@@ -44,6 +44,8 @@
 #include <QSpinBox>
 #include <QToolButton>
 #include <QTextEdit>
+#include <QRadioButton>
+#include <QButtonGroup>
 
 using namespace Utils;
 
@@ -58,6 +60,17 @@ public:
     QString m_label;
     QString m_tooltip;
     QPointer<QCheckBox> m_checkBox; // Owned by configuration widget
+};
+
+class BaseSelectionAspectPrivate
+{
+public:
+    int m_value = 0;
+    int m_defaultValue = 0;
+    struct Option { QString displayName; QString tooltip; };
+    QVector<Option> m_options;
+    QList<QPointer<QRadioButton>> m_buttons; // Owned by configuration widget
+    QPointer<QButtonGroup> m_buttonGroup;
 };
 
 class BaseStringAspectPrivate
@@ -79,7 +92,7 @@ public:
     QPointer<PathChooser> m_pathChooserDisplay;
     QPointer<QTextEdit> m_textEditDisplay;
     QPixmap m_labelPixmap;
-    Utils::FileName m_baseFileName;
+    Utils::FilePath m_baseFileName;
 };
 
 class BaseIntegerAspectPrivate
@@ -138,12 +151,12 @@ void BaseStringAspect::toMap(QVariantMap &map) const
         d->m_checker->toMap(map);
 }
 
-FileName BaseStringAspect::fileName() const
+FilePath BaseStringAspect::fileName() const
 {
-    return FileName::fromString(d->m_value);
+    return FilePath::fromString(d->m_value);
 }
 
-void BaseStringAspect::setFileName(const FileName &val)
+void BaseStringAspect::setFileName(const FilePath &val)
 {
     setValue(val.toString());
 }
@@ -214,7 +227,7 @@ void BaseStringAspect::setEnvironment(const Environment &env)
         d->m_pathChooserDisplay->setEnvironment(env);
 }
 
-void BaseStringAspect::setBaseFileName(const FileName &baseFileName)
+void BaseStringAspect::setBaseFileName(const FilePath &baseFileName)
 {
     d->m_baseFileName = baseFileName;
     if (d->m_pathChooserDisplay)
@@ -292,7 +305,7 @@ void BaseStringAspect::update()
     const bool enabled = !d->m_checker || d->m_checker->value();
 
     if (d->m_pathChooserDisplay) {
-        d->m_pathChooserDisplay->setFileName(FileName::fromString(displayedString));
+        d->m_pathChooserDisplay->setFileName(FilePath::fromString(displayedString));
         d->m_pathChooserDisplay->setEnabled(enabled);
     }
 
@@ -372,6 +385,7 @@ bool BaseBoolAspect::defaultValue() const
 void BaseBoolAspect::setDefaultValue(bool defaultValue)
 {
     d->m_defaultValue = defaultValue;
+    d->m_value = defaultValue;
 }
 
 bool BaseBoolAspect::value() const
@@ -394,6 +408,75 @@ void BaseBoolAspect::setLabel(const QString &label)
 void BaseBoolAspect::setToolTip(const QString &tooltip)
 {
     d->m_tooltip = tooltip;
+}
+
+/*!
+    \class ProjectExplorer::BaseSelectionAspect
+*/
+
+BaseSelectionAspect::BaseSelectionAspect()
+    : d(new Internal::BaseSelectionAspectPrivate)
+{}
+
+BaseSelectionAspect::~BaseSelectionAspect() = default;
+
+void BaseSelectionAspect::addToConfigurationLayout(QFormLayout *layout)
+{
+    QTC_CHECK(d->m_buttonGroup == nullptr);
+    d->m_buttonGroup = new QButtonGroup;
+    d->m_buttonGroup->setExclusive(true);
+
+    QTC_ASSERT(d->m_buttons.isEmpty(), d->m_buttons.clear());
+    for (int i = 0, n = d->m_options.size(); i < n; ++i) {
+        const Internal::BaseSelectionAspectPrivate::Option &option = d->m_options.at(i);
+        auto button = new QRadioButton(option.displayName, layout->parentWidget());
+        button->setChecked(i == d->m_value);
+        button->setToolTip(option.tooltip);
+        layout->addRow(QString(), button);
+        d->m_buttons.append(button);
+        d->m_buttonGroup->addButton(button);
+        connect(button, &QAbstractButton::clicked, this, [this, i] {
+            d->m_value = i;
+            emit changed();
+        });
+    }
+}
+
+void BaseSelectionAspect::fromMap(const QVariantMap &map)
+{
+    d->m_value = map.value(settingsKey(), d->m_defaultValue).toInt();
+}
+
+void BaseSelectionAspect::toMap(QVariantMap &data) const
+{
+    data.insert(settingsKey(), d->m_value);
+}
+
+int BaseSelectionAspect::defaultValue() const
+{
+    return d->m_defaultValue;
+}
+
+void BaseSelectionAspect::setDefaultValue(int defaultValue)
+{
+    d->m_defaultValue = defaultValue;
+}
+
+int BaseSelectionAspect::value() const
+{
+    return d->m_value;
+}
+
+void BaseSelectionAspect::setValue(int value)
+{
+    d->m_value = value;
+    if (d->m_buttonGroup && 0 <= value && value < d->m_buttons.size())
+        d->m_buttons.at(value)->setChecked(true);
+}
+
+void BaseSelectionAspect::addOption(const QString &displayName, const QString &toolTip)
+{
+    d->m_options.append({displayName, toolTip});
 }
 
 /*!

@@ -110,10 +110,10 @@ Node *ProjectTree::currentNode()
     return s_instance->m_currentNode;
 }
 
-FileName ProjectTree::currentFilePath()
+FilePath ProjectTree::currentFilePath()
 {
     Node *node = currentNode();
-    return node ? node->filePath() : FileName();
+    return node ? node->filePath() : FilePath();
 }
 
 void ProjectTree::registerWidget(ProjectTreeWidget *widget)
@@ -167,7 +167,7 @@ void ProjectTree::updateFromProjectTreeWidget(ProjectTreeWidget *widget)
 void ProjectTree::updateFromDocumentManager()
 {
     if (Core::IDocument *document = Core::EditorManager::currentDocument()) {
-        const FileName fileName = document->filePath();
+        const FilePath fileName = document->filePath();
         updateFromNode(ProjectTreeWidget::nodeForFile(fileName));
     } else {
         updateFromNode(nullptr);
@@ -302,12 +302,12 @@ void ProjectTree::updateExternalFileWarning()
     }
     if (!infoBar->canInfoBeAdded(externalFileId))
         return;
-    const FileName fileName = document->filePath();
+    const FilePath fileName = document->filePath();
     const QList<Project *> projects = SessionManager::projects();
     if (projects.isEmpty())
         return;
     for (Project *project : projects) {
-        FileName projectDir = project->projectDirectory();
+        FilePath projectDir = project->projectDirectory();
         if (projectDir.isEmpty())
             continue;
         if (fileName.isChildOf(projectDir))
@@ -315,7 +315,7 @@ void ProjectTree::updateExternalFileWarning()
         // External file. Test if it under the same VCS
         QString topLevel;
         if (Core::VcsManager::findVersionControlForDirectory(projectDir.toString(), &topLevel)
-                && fileName.isChildOf(FileName::fromString(topLevel))) {
+                && fileName.isChildOf(FilePath::fromString(topLevel))) {
             return;
         }
     }
@@ -389,9 +389,15 @@ void ProjectTree::applyTreeManager(FolderNode *folder)
 bool ProjectTree::hasNode(const Node *node)
 {
     return Utils::contains(SessionManager::projects(), [node](const Project *p) {
-        return p && p->rootProjectNode() && (
-                    p->containerNode() == node
-                    || p->rootProjectNode()->findNode([node](const Node *n) { return n == node; }));
+        if (!p)
+            return false;
+        if (p->containerNode() == node)
+            return true;
+        // When parsing fails we have a living container node but no rootProjectNode.
+        ProjectNode *pn = p->rootProjectNode();
+        if (!pn)
+            return false;
+        return pn->findNode([node](const Node *n) { return n == node; }) != nullptr;
     });
 }
 
@@ -423,7 +429,7 @@ Project *ProjectTree::projectForNode(const Node *node)
     });
 }
 
-Node *ProjectTree::nodeForFile(const FileName &fileName)
+Node *ProjectTree::nodeForFile(const FilePath &fileName)
 {
     Node *node = nullptr;
     for (const Project *project : SessionManager::projects()) {

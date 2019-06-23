@@ -32,10 +32,11 @@
 
 #include <sqlitedatabase.h>
 
+#include <clangindexingsettingsmanager.h>
+#include <clangrefactoringservermessages.h>
 #include <filepathcaching.h>
 #include <precompiledheadersupdatedmessage.h>
 #include <refactoringdatabaseinitializer.h>
-#include <clangrefactoringservermessages.h>
 
 #include <pchmanagerclient.h>
 
@@ -84,11 +85,13 @@ protected:
                                                        mockDependencyCreationProgressManager};
     MockCppModelManager mockCppModelManager;
     ProjectExplorer::Project project;
+    ClangPchManager::ClangIndexingSettingsManager settingsManager;
     ClangRefactoring::RefactoringProjectUpdater updater{mockRefactoringServer,
                                                         pchManagerClient,
                                                         mockCppModelManager,
                                                         filePathCache,
-                                                        mockProjectPartsStorage};
+                                                        mockProjectPartsStorage,
+                                                        settingsManager};
     Utils::SmallString projectPartId;
 };
 
@@ -101,7 +104,7 @@ TEST_F(RefactoringProjectUpdater, DontUpdateProjectPartIfNoProjectPartExistsForI
     EXPECT_CALL(mockCppModelManager, projectPartForId(Eq(QString("project1"))));
     EXPECT_CALL(mockRefactoringServer, updateProjectParts(_)).Times(0);
 
-    pchManagerClient.precompiledHeadersUpdated({{{3, "/path/to/pch", 12}}});
+    pchManagerClient.precompiledHeadersUpdated({3});
 }
 
 TEST_F(RefactoringProjectUpdater, UpdateProjectPart)
@@ -118,7 +121,7 @@ TEST_F(RefactoringProjectUpdater, UpdateProjectPart)
                 updateProjectParts(Field(&UpdateProjectPartsMessage::projectsParts,
                                          ElementsAre(IsProjectPartContainer(3)))));
 
-    pchManagerClient.precompiledHeadersUpdated({{{3, "/path/to/pch", 12}}});
+    pchManagerClient.precompiledHeadersUpdated({3});
 }
 
 TEST_F(RefactoringProjectUpdater, RemoveProjectPart)

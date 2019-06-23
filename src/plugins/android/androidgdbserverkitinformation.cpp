@@ -26,6 +26,7 @@
 #include "androidgdbserverkitinformation.h"
 #include "androidconstants.h"
 #include "androidtoolchain.h"
+#include "androidconfigurations.h"
 
 #include <utils/pathchooser.h>
 #include <utils/elidinglabel.h>
@@ -86,9 +87,9 @@ void AndroidGdbServerKitAspect::setup(Kit *kit)
         kit->setValue(id(), autoDetect(kit).toString());
 }
 
-QList<Task> AndroidGdbServerKitAspect::validate(const Kit *) const
+Tasks AndroidGdbServerKitAspect::validate(const Kit *) const
 {
-    return QList<Task>();
+    return {};
 }
 
 bool AndroidGdbServerKitAspect::isApplicableToKit(const Kit *k) const
@@ -98,8 +99,7 @@ bool AndroidGdbServerKitAspect::isApplicableToKit(const Kit *k) const
 
 KitAspect::ItemList AndroidGdbServerKitAspect::toUserOutput(const Kit *kit) const
 {
-    return KitAspect::ItemList()
-            << qMakePair(tr("GDB server"), AndroidGdbServerKitAspect::gdbServer(kit).toUserOutput());
+    return {{tr("GDB server"), AndroidGdbServerKitAspect::gdbServer(kit).toUserOutput()}};
 }
 
 KitAspectWidget *AndroidGdbServerKitAspect::createConfigWidget(Kit *kit) const
@@ -113,25 +113,24 @@ Core::Id AndroidGdbServerKitAspect::id()
     return "Android.GdbServer.Information";
 }
 
-FileName AndroidGdbServerKitAspect::gdbServer(const Kit *kit)
+FilePath AndroidGdbServerKitAspect::gdbServer(const Kit *kit)
 {
-    QTC_ASSERT(kit, return FileName());
-    return FileName::fromString(kit->value(AndroidGdbServerKitAspect::id()).toString());
+    QTC_ASSERT(kit, return FilePath());
+    return FilePath::fromString(kit->value(AndroidGdbServerKitAspect::id()).toString());
 }
 
-void AndroidGdbServerKitAspect::setGdbSever(Kit *kit, const FileName &gdbServerCommand)
+void AndroidGdbServerKitAspect::setGdbSever(Kit *kit, const FilePath &gdbServerCommand)
 {
     QTC_ASSERT(kit, return);
     kit->setValue(AndroidGdbServerKitAspect::id(), gdbServerCommand.toString());
 }
 
-FileName AndroidGdbServerKitAspect::autoDetect(const Kit *kit)
+FilePath AndroidGdbServerKitAspect::autoDetect(const Kit *kit)
 {
     ToolChain *tc = ToolChainKitAspect::toolChain(kit, ProjectExplorer::Constants::CXX_LANGUAGE_ID);
-    if (!tc || tc->typeId() != Constants::ANDROID_TOOLCHAIN_ID)
-        return FileName();
-    auto atc = static_cast<AndroidToolChain *>(tc);
-    return atc->suggestedGdbServer();
+    if (!tc || tc->typeId() != Constants::ANDROID_TOOLCHAIN_TYPEID)
+        return FilePath();
+    return AndroidConfigurations::currentConfig().gdbServer(tc->targetAbi());
 }
 
 ///////////////

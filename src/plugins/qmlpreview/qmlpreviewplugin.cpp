@@ -76,7 +76,7 @@ signals:
 static QByteArray defaultFileLoader(const QString &filename, bool *success)
 {
     if (Core::DocumentModel::Entry *entry
-            = Core::DocumentModel::entryForFilePath(Utils::FileName::fromString(filename))) {
+            = Core::DocumentModel::entryForFilePath(Utils::FilePath::fromString(filename))) {
         if (!entry->isSuspended) {
             *success = true;
             return entry->document->contents();
@@ -196,9 +196,9 @@ ExtensionSystem::IPlugin::ShutdownFlag QmlPreviewPlugin::aboutToShutdown()
     return SynchronousShutdown;
 }
 
-QList<QObject *> QmlPreviewPlugin::createTestObjects() const
+QVector<QObject *> QmlPreviewPlugin::createTestObjects() const
 {
-    QList<QObject *> tests;
+    QVector<QObject *> tests;
 #ifdef WITH_TESTS
     tests.append(new QmlPreviewClientTest);
     tests.append(new QmlPreviewPluginTest);

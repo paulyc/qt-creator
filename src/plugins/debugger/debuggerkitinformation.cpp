@@ -218,7 +218,7 @@ void DebuggerKitAspect::setup(Kit *k)
                 }
             } else {
                 // We have an executable path.
-                FileName fileName = FileName::fromUserInput(binary);
+                FilePath fileName = FilePath::fromUserInput(binary);
                 if (item.command() == fileName) {
                     // And it's is the path of this item.
                     level = std::min(item.matchTarget(tcAbi), DebuggerItem::MatchesSomewhat);
@@ -270,7 +270,7 @@ void DebuggerKitAspect::fix(Kit *k)
         return;
     }
 
-    FileName fileName = FileName::fromUserInput(binary);
+    FilePath fileName = FilePath::fromUserInput(binary);
     const DebuggerItem *item = DebuggerItemManager::findByCommand(fileName);
     if (!item) {
         qWarning("Debugger command %s invalid in kit %s",
@@ -335,7 +335,7 @@ Runnable DebuggerKitAspect::runnable(const Kit *kit)
 {
     Runnable runnable;
     if (const DebuggerItem *item = debugger(kit)) {
-        runnable.executable = item->command().toString();
+        runnable.executable = item->command();
         runnable.workingDirectory = item->workingDirectory().toString();
         runnable.environment = Utils::Environment::systemEnvironment();
         runnable.environment.set("LC_NUMERIC", "C");
@@ -343,9 +343,9 @@ Runnable DebuggerKitAspect::runnable(const Kit *kit)
     return runnable;
 }
 
-QList<Task> DebuggerKitAspect::validateDebugger(const Kit *k)
+Tasks DebuggerKitAspect::validateDebugger(const Kit *k)
 {
-    QList<Task> result;
+    Tasks result;
 
     const ConfigurationErrors errors = configurationErrors(k);
     if (errors == NoConfigurationError)
@@ -357,25 +357,25 @@ QList<Task> DebuggerKitAspect::validateDebugger(const Kit *k)
 
     const Core::Id id = ProjectExplorer::Constants::TASK_CATEGORY_BUILDSYSTEM;
     if (errors & NoDebugger)
-        result << Task(Task::Warning, tr("No debugger set up."), FileName(), -1, id);
+        result << Task(Task::Warning, tr("No debugger set up."), FilePath(), -1, id);
 
     if (errors & DebuggerNotFound)
         result << Task(Task::Error, tr("Debugger \"%1\" not found.").arg(path),
-                       FileName(), -1, id);
+                       FilePath(), -1, id);
     if (errors & DebuggerNotExecutable)
-        result << Task(Task::Error, tr("Debugger \"%1\" not executable.").arg(path), FileName(), -1, id);
+        result << Task(Task::Error, tr("Debugger \"%1\" not executable.").arg(path), FilePath(), -1, id);
 
     if (errors & DebuggerNeedsAbsolutePath) {
         const QString message =
                 tr("The debugger location must be given as an "
                    "absolute path (%1).").arg(path);
-        result << Task(Task::Error, message, FileName(), -1, id);
+        result << Task(Task::Error, message, FilePath(), -1, id);
     }
 
     if (errors & DebuggerDoesNotMatch) {
         const QString message = tr("The ABI of the selected debugger does not "
                                    "match the toolchain ABI.");
-        result << Task(Task::Warning, message, FileName(), -1, id);
+        result << Task(Task::Warning, message, FilePath(), -1, id);
     }
     return result;
 }
@@ -418,7 +418,7 @@ void DebuggerKitAspect::addToMacroExpander(Kit *kit, MacroExpander *expander) co
 
 KitAspect::ItemList DebuggerKitAspect::toUserOutput(const Kit *k) const
 {
-    return ItemList() << qMakePair(tr("Debugger"), displayString(k));
+    return {{tr("Debugger"), displayString(k)}};
 }
 
 DebuggerEngineType DebuggerKitAspect::engineType(const Kit *k)

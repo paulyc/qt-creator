@@ -81,8 +81,7 @@ static QStringList splitArgs(QString &argsString)
     return result;
 }
 
-template<size_t Size>
-static QStringList extraOptions(const char(&environment)[Size])
+static QStringList extraOptions(const char *environment)
 {
     if (!qEnvironmentVariableIsSet(environment))
         return QStringList();
@@ -90,7 +89,8 @@ static QStringList extraOptions(const char(&environment)[Size])
     return splitArgs(arguments);
 }
 
-static QStringList extraClangToolsPrependOptions() {
+static QStringList extraClangToolsPrependOptions()
+{
     constexpr char csaPrependOptions[] = "QTC_CLANG_CSA_CMD_PREPEND";
     constexpr char toolsPrependOptions[] = "QTC_CLANG_TOOLS_CMD_PREPEND";
     static const QStringList options = extraOptions(csaPrependOptions)
@@ -100,7 +100,8 @@ static QStringList extraClangToolsPrependOptions() {
     return options;
 }
 
-static QStringList extraClangToolsAppendOptions() {
+static QStringList extraClangToolsAppendOptions()
+{
     constexpr char csaAppendOptions[] = "QTC_CLANG_CSA_CMD_APPEND";
     constexpr char toolsAppendOptions[] = "QTC_CLANG_TOOLS_CMD_APPEND";
     static const QStringList options = extraOptions(csaAppendOptions)
@@ -216,14 +217,14 @@ AnalyzeUnits ClangToolRunControl::unitsToAnalyze()
 
 static QDebug operator<<(QDebug debug, const Utils::Environment &environment)
 {
-    foreach (const QString &entry, environment.toStringList())
+    for (const QString &entry : environment.toStringList())
         debug << "\n  " << entry;
     return debug;
 }
 
 static QDebug operator<<(QDebug debug, const AnalyzeUnits &analyzeUnits)
 {
-    foreach (const AnalyzeUnit &unit, analyzeUnits)
+    for (const AnalyzeUnit &unit : analyzeUnits)
         debug << "\n  " << unit.file;
     return debug;
 }
@@ -299,7 +300,7 @@ void ClangToolRunControl::start()
         return;
     }
 
-    const Utils::FileName projectFile = m_projectInfo.project()->projectFilePath();
+    const Utils::FilePath projectFile = m_projectInfo.project()->projectFilePath();
     appendMessage(tr("Running %1 on %2").arg(toolName).arg(projectFile.toUserOutput()),
                   Utils::NormalMessageFormat);
 
@@ -385,14 +386,13 @@ void ClangToolRunControl::analyzeNextFile()
     m_runners.insert(runner);
     QTC_ASSERT(runner->run(unit.file, unit.arguments), return);
 
-    appendMessage(tr("Analyzing \"%1\".").arg(
-                      Utils::FileName::fromString(unit.file).toUserOutput()),
+    appendMessage(tr("Analyzing \"%1\".").arg(FilePath::fromString(unit.file).toUserOutput()),
                   Utils::StdOutFormat);
 }
 
-static Utils::FileName cleanPath(const Utils::FileName &filePath)
+static Utils::FilePath cleanPath(const Utils::FilePath &filePath)
 {
-    return Utils::FileName::fromString(QDir::cleanPath(filePath.toString()));
+    return Utils::FilePath::fromString(QDir::cleanPath(filePath.toString()));
 }
 
 void ClangToolRunControl::onRunnerFinishedWithSuccess(const QString &filePath)
@@ -401,7 +401,7 @@ void ClangToolRunControl::onRunnerFinishedWithSuccess(const QString &filePath)
     qCDebug(LOG) << "onRunnerFinishedWithSuccess:" << logFilePath;
 
     QTC_ASSERT(m_projectInfo.project(), return);
-    const Utils::FileName projectRootDir = cleanPath(m_projectInfo.project()->projectDirectory());
+    const Utils::FilePath projectRootDir = cleanPath(m_projectInfo.project()->projectDirectory());
 
     QString errorMessage;
     const QList<Diagnostic> diagnostics = tool()->read(filePath,

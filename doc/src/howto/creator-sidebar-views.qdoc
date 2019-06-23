@@ -159,6 +159,10 @@
         \li To see the absolute path of a file, move the mouse pointer over the
             file name.
 
+        \li To move files from one project to another, drag-and-drop them
+            in the project tree. \QC makes the necessary changes to project
+            configuration files.
+
     \endlist
 
     \if defined(qtcreator)
@@ -188,23 +192,16 @@
         \li Expand or collapse the tree view to show or hide all files and
             folders.
         \li Close all files in a project.
-        \li Close projects.
+        \li Close projects. By default, all files in the project are also
+            closed. To keep them open, deselect the \uicontrol Tools >
+            \uicontrol Options > \uicontrol {Build & Run} > \uicontrol General
+            > \uicontrol {Close source files along with project} check box.
     \endlist
 
     For managing files and directories, the same functions are available as in
     the \uicontrol {File System} view. In addition, you can remove and rename
     files, as well as compare the selected file with the currently open file
     in the diff editor. For more information, see \l{Comparing Files}.
-
-    \section1 Viewing Open Documents
-
-    To see a list of open documents, switch to the \uicontrol {Open Documents}
-    view. By right-clicking an open document, you can:
-
-    \list
-        \li Pin files to ensure they stay at the top of the list and are not
-            closed when \uicontrol {Close All} is used.
-    \endlist
 
     \section1 Viewing the File System
 
@@ -272,6 +269,22 @@
 
         \li Collapse all open folders.
 
+    \endlist
+
+    \section1 Viewing Open Documents
+
+    To see a list of open documents, switch to the \uicontrol {Open Documents}
+    view. You can use the context-menu to perform some of the functions also
+    available in the \uicontrol File menu and in the context menu in the
+    \uicontrol {File System} view.
+
+    In addition, you can:
+
+    \list
+        \li Copy the full path of the file or just the filename to the
+            clipboard.
+        \li Pin files to ensure they stay at the top of the list and are not
+            closed when \uicontrol {Close All} is used.
     \endlist
 
     \section1 Viewing Defined Types and Symbols

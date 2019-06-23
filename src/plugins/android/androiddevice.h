@@ -41,13 +41,11 @@ private:
 
     ProjectExplorer::IDevice::DeviceInfo deviceInformation() const override;
 
-    QString displayType() const override;
     ProjectExplorer::IDeviceWidget *createWidget() override;
     bool canAutoDetectPorts() const override;
     ProjectExplorer::DeviceProcessSignalOperation::Ptr signalOperation() const override;
     Utils::OsType osType() const override;
 
-    ProjectExplorer::IDevice::Ptr clone() const override;
     QUrl toolControlChannel(const ControlChannelHint &) const override;
 };
 

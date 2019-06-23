@@ -106,6 +106,7 @@
 #include <QScrollBar>
 #include <QShortcut>
 #include <QStyle>
+#include <QStyleFactory>
 #include <QTextBlock>
 #include <QTextCodec>
 #include <QTextCursor>
@@ -5363,7 +5364,19 @@ void TextEditorWidgetPrivate::drawFoldingMarker(QPainter *painter, const QPalett
     if (hovered)
         opt.palette.setBrush(QPalette::Window, pal.highlight());
 
-    const char* const className = s->metaObject()->className();
+    const char *className = s->metaObject()->className();
+
+    // Do not use the windows folding marker since we cannot style them and the default hover color
+    // is a blue which does not guarantee an high contrast on all themes.
+    static QPointer<QStyle> fusionStyleOverwrite = nullptr;
+    if (!qstrcmp(className, "QWindowsVistaStyle")) {
+        if (fusionStyleOverwrite.isNull())
+            fusionStyleOverwrite = QStyleFactory::create("fusion");
+        if (!fusionStyleOverwrite.isNull()) {
+            s = fusionStyleOverwrite.data();
+            className = s->metaObject()->className();
+        }
+    }
 
     if (!qstrcmp(className, "OxygenStyle")) {
         const QStyle::PrimitiveElement direction = expanded ? QStyle::PE_IndicatorArrowDown
@@ -5820,6 +5833,11 @@ void TextEditorWidget::showDefaultContextMenu(QContextMenuEvent *e, Id menuConte
 void TextEditorWidget::addHoverHandler(BaseHoverHandler *handler)
 {
     d->m_hoverHandlers.append(handler);
+}
+
+void TextEditorWidget::removeHoverHandler(BaseHoverHandler *handler)
+{
+    d->m_hoverHandlers.removeAll(handler);
 }
 
 void TextEditorWidget::extraAreaLeaveEvent(QEvent *)
@@ -7516,6 +7534,7 @@ void TextEditorWidget::setCompletionSettings(const CompletionSettings &completio
     d->m_autoCompleter->setSurroundWithBracketsEnabled(completionSettings.m_surroundingAutoBrackets);
     d->m_autoCompleter->setAutoInsertQuotesEnabled(completionSettings.m_autoInsertQuotes);
     d->m_autoCompleter->setSurroundWithQuotesEnabled(completionSettings.m_surroundingAutoQuotes);
+    d->m_autoCompleter->setOverwriteClosingCharsEnabled(completionSettings.m_overwriteClosingChars);
     d->m_animateAutoComplete = completionSettings.m_animateAutoComplete;
     d->m_highlightAutoComplete = completionSettings.m_highlightAutoComplete;
     d->m_skipAutoCompletedText = completionSettings.m_skipAutoCompletedText;

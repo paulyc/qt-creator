@@ -231,7 +231,7 @@ void SshConnection::disconnectFromHost()
     case Connecting:
     case Connected:
         if (!d->sharingEnabled) {
-            emitDisconnected();
+            QTimer::singleShot(0, this, &SshConnection::emitDisconnected);
             return;
         }
         d->state = Disconnecting;
@@ -309,7 +309,7 @@ SshConnection::~SshConnection()
     delete d;
 }
 
-SshRemoteProcessPtr SshConnection::createRemoteProcess(const QByteArray &command)
+SshRemoteProcessPtr SshConnection::createRemoteProcess(const QString &command)
 {
     QTC_ASSERT(state() == Connected, return SshRemoteProcessPtr());
     return SshRemoteProcessPtr(new SshRemoteProcess(command, d->connectionArgs()));
@@ -317,7 +317,7 @@ SshRemoteProcessPtr SshConnection::createRemoteProcess(const QByteArray &command
 
 SshRemoteProcessPtr SshConnection::createRemoteShell()
 {
-    return createRemoteProcess(QByteArray());
+    return createRemoteProcess({});
 }
 
 SftpTransferPtr SshConnection::createUpload(const FilesToTransfer &files,
@@ -342,14 +342,16 @@ void SshConnection::doConnectToHost()
 {
     if (d->state != Connecting)
         return;
-    const FileName sshBinary = SshSettings::sshFilePath();
+    const FilePath sshBinary = SshSettings::sshFilePath();
     if (!sshBinary.exists()) {
         emitError(tr("Cannot establish SSH connection: ssh binary \"%1\" does not exist.")
                   .arg(sshBinary.toUserOutput()));
         return;
     }
-    if (!d->sharingEnabled)
+    if (!d->sharingEnabled) {
         emitConnected();
+        return;
+    }
     d->masterSocketDir.reset(new QTemporaryDir);
     if (!d->masterSocketDir->isValid()) {
         emitError(tr("Cannot establish SSH connection: Failed to create temporary "

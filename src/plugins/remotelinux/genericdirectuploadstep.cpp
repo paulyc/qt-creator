@@ -34,60 +34,37 @@
 using namespace ProjectExplorer;
 
 namespace RemoteLinux {
-namespace Internal {
-
-class GenericDirectUploadStepPrivate
-{
-public:
-    GenericDirectUploadService deployService;
-    BaseBoolAspect *incrementalAspect;
-    BaseBoolAspect *ignoreMissingFilesAspect;
-};
-
-} // namespace Internal
 
 GenericDirectUploadStep::GenericDirectUploadStep(BuildStepList *bsl)
     : AbstractRemoteLinuxDeployStep(bsl, stepId())
 {
-    d = new Internal::GenericDirectUploadStepPrivate;
+    auto service = createDeployService<GenericDirectUploadService>();
 
-    d->incrementalAspect = addAspect<BaseBoolAspect>();
-    d->incrementalAspect->setSettingsKey("RemoteLinux.GenericDirectUploadStep.Incremental");
-    d->incrementalAspect->setLabel(tr("Incremental deployment"));
-    d->incrementalAspect->setValue(true);
-    d->incrementalAspect->setDefaultValue(true);
+    auto incremental = addAspect<BaseBoolAspect>();
+    incremental->setSettingsKey("RemoteLinux.GenericDirectUploadStep.Incremental");
+    incremental->setLabel(tr("Incremental deployment"));
+    incremental->setValue(true);
+    incremental->setDefaultValue(true);
 
-    d->ignoreMissingFilesAspect = addAspect<BaseBoolAspect>();
-    d->ignoreMissingFilesAspect
-            ->setSettingsKey("RemoteLinux.GenericDirectUploadStep.IgnoreMissingFiles");
-    d->ignoreMissingFilesAspect->setLabel(tr("Ignore missing files"));
-    d->ignoreMissingFilesAspect->setValue(false);
+    auto ignoreMissingFiles = addAspect<BaseBoolAspect>();
+    ignoreMissingFiles->setSettingsKey("RemoteLinux.GenericDirectUploadStep.IgnoreMissingFiles");
+    ignoreMissingFiles->setLabel(tr("Ignore missing files"));
+    ignoreMissingFiles->setValue(false);
+
+    setInternalInitializer([incremental, ignoreMissingFiles, service] {
+        service->setIncrementalDeployment(incremental->value());
+        service->setIgnoreMissingFiles(ignoreMissingFiles->value());
+        return service->isDeploymentPossible();
+    });
+
+    setRunPreparer([this, service] {
+        service->setDeployableFiles(target()->deploymentData().allFiles());
+    });
 
     setDefaultDisplayName(displayName());
 }
 
-GenericDirectUploadStep::~GenericDirectUploadStep()
-{
-    delete d;
-}
-
-CheckResult GenericDirectUploadStep::initInternal()
-{
-    d->deployService.setIncrementalDeployment(d->incrementalAspect->value());
-    d->deployService.setIgnoreMissingFiles(d->ignoreMissingFilesAspect->value());
-    return d->deployService.isDeploymentPossible();
-}
-
-GenericDirectUploadService *GenericDirectUploadStep::deployService() const
-{
-    return &d->deployService;
-}
-
-void GenericDirectUploadStep::doRun()
-{
-    d->deployService.setDeployableFiles(target()->deploymentData().allFiles());
-    AbstractRemoteLinuxDeployStep::doRun();
-}
+GenericDirectUploadStep::~GenericDirectUploadStep() = default;
 
 Core::Id GenericDirectUploadStep::stepId()
 {

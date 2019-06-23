@@ -62,6 +62,9 @@ MessageOutputWindow::MessageOutputWindow()
     auto agg = new Aggregation::Aggregate;
     agg->add(m_widget);
     agg->add(new BaseTextFind(m_widget));
+
+    setupFilterUi("MessageOutputPane.Filter");
+    setFilteringEnabled(true);
 }
 
 MessageOutputWindow::~MessageOutputWindow()
@@ -137,6 +140,11 @@ void MessageOutputWindow::goToPrev()
 bool MessageOutputWindow::canNavigate() const
 {
     return false;
+}
+
+void MessageOutputWindow::updateFilter()
+{
+    m_widget->updateFilterProperties(filterText(), filterCaseSensitivity(), filterUsesRegexp());
 }
 
 } // namespace Internal

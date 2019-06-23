@@ -211,7 +211,7 @@ QList<Core::IWizardFactory *> JsonWizardFactory::createWizardFactories()
     const QString wizardFileName = QLatin1String(WIZARD_FILE);
 
     QList <Core::IWizardFactory *> result;
-    foreach (const Utils::FileName &path, searchPaths()) {
+    foreach (const Utils::FilePath &path, searchPaths()) {
         if (path.isEmpty())
             continue;
 
@@ -225,7 +225,7 @@ QList<Core::IWizardFactory *> JsonWizardFactory::createWizardFactories()
 
         const QDir::Filters filters = QDir::Dirs|QDir::Readable|QDir::NoDotAndDotDot;
         const QDir::SortFlags sortflags = QDir::Name|QDir::IgnoreCase;
-        QList<QFileInfo> dirs = dir.entryInfoList(filters, sortflags);
+        QFileInfoList dirs = dir.entryInfoList(filters, sortflags);
 
         while (!dirs.isEmpty()) {
             const QFileInfo dirFi = dirs.takeFirst();
@@ -285,7 +285,7 @@ QList<Core::IWizardFactory *> JsonWizardFactory::createWizardFactories()
 
                 result << factory;
             } else {
-                QList<QFileInfo> subDirs = current.entryInfoList(filters, sortflags);
+                QFileInfoList subDirs = current.entryInfoList(filters, sortflags);
                 if (!subDirs.isEmpty()) {
                     // There is no QList::prepend(QList)...
                     dirs.swap(subDirs);
@@ -334,20 +334,20 @@ static QStringList environmentTemplatesPaths()
     return paths;
 }
 
-Utils::FileNameList &JsonWizardFactory::searchPaths()
+Utils::FilePathList &JsonWizardFactory::searchPaths()
 {
-    static Utils::FileNameList m_searchPaths = Utils::FileNameList()
-            << Utils::FileName::fromString(Core::ICore::userResourcePath() + QLatin1Char('/') +
+    static Utils::FilePathList m_searchPaths = Utils::FilePathList()
+            << Utils::FilePath::fromString(Core::ICore::userResourcePath() + QLatin1Char('/') +
                                            QLatin1String(WIZARD_PATH))
-            << Utils::FileName::fromString(Core::ICore::resourcePath() + QLatin1Char('/') +
+            << Utils::FilePath::fromString(Core::ICore::resourcePath() + QLatin1Char('/') +
                                            QLatin1String(WIZARD_PATH));
     for (const QString &environmentTemplateDirName : environmentTemplatesPaths())
-        m_searchPaths << Utils::FileName::fromString(environmentTemplateDirName);
+        m_searchPaths << Utils::FilePath::fromString(environmentTemplateDirName);
 
     return m_searchPaths;
 }
 
-void JsonWizardFactory::addWizardPath(const Utils::FileName &path)
+void JsonWizardFactory::addWizardPath(const Utils::FilePath &path)
 {
     searchPaths().append(path);
 }

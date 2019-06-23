@@ -539,9 +539,8 @@ void QmlEngine::startApplicationLauncher()
 {
     if (!d->applicationLauncher.isRunning()) {
         const Runnable runnable = runParameters().inferior;
-        showMessage(tr("Starting %1 %2").arg(QDir::toNativeSeparators(runnable.executable),
-                                             runnable.commandLineArguments),
-                    Utils::NormalMessageFormat);
+        showMessage(tr("Starting %1").arg(runnable.commandLine().toUserOutput()),
+                    NormalMessageFormat);
         d->applicationLauncher.start(runnable);
     }
 }
@@ -1419,7 +1418,7 @@ void QmlEnginePrivate::setBreakpoint(const QString type, const QString target,
         cmd.arg(ENABLED, enabled);
 
         if (type == SCRIPTREGEXP)
-            cmd.arg(TARGET, Utils::FileName::fromString(target).fileName());
+            cmd.arg(TARGET, Utils::FilePath::fromString(target).fileName());
         else
             cmd.arg(TARGET, target);
 

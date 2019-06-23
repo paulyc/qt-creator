@@ -64,12 +64,12 @@ const char DEBUGGER_INFORMATION_WORKINGDIRECTORY[] = "WorkingDirectory";
 
 //! Return the configuration of gdb as a list of --key=value
 //! \note That the list will also contain some output not in this format.
-static QString getConfigurationOfGdbCommand(const QString &command)
+static QString getConfigurationOfGdbCommand(const FilePath &command)
 {
     // run gdb with the --configuration opion
     Utils::SynchronousProcess gdbConfigurationCall;
     Utils::SynchronousProcessResponse output =
-            gdbConfigurationCall.runBlocking(command, {QString("--configuration")});
+            gdbConfigurationCall.runBlocking({command, {"--configuration"}});
     return output.allOutput();
 }
 
@@ -106,8 +106,8 @@ DebuggerItem::DebuggerItem(const QVariant &id)
 DebuggerItem::DebuggerItem(const QVariantMap &data)
 {
     m_id = data.value(DEBUGGER_INFORMATION_ID).toString();
-    m_command = FileName::fromUserInput(data.value(DEBUGGER_INFORMATION_COMMAND).toString());
-    m_workingDirectory = FileName::fromUserInput(data.value(DEBUGGER_INFORMATION_WORKINGDIRECTORY).toString());
+    m_command = FilePath::fromUserInput(data.value(DEBUGGER_INFORMATION_COMMAND).toString());
+    m_workingDirectory = FilePath::fromUserInput(data.value(DEBUGGER_INFORMATION_WORKINGDIRECTORY).toString());
     m_unexpandedDisplayName = data.value(DEBUGGER_INFORMATION_DISPLAYNAME).toString();
     m_isAutoDetected = data.value(DEBUGGER_INFORMATION_AUTODETECTED, false).toBool();
     m_version = data.value(DEBUGGER_INFORMATION_VERSION).toString();
@@ -142,15 +142,14 @@ void DebuggerItem::reinitializeFromFile()
     // CDB only understands the single-dash -version, whereas GDB and LLDB are
     // happy with both -version and --version. So use the "working" -version
     // except for the experimental LLDB-MI which insists on --version.
-    const char *version = "-version";
+    QString version = "-version";
     const QFileInfo fileInfo = m_command.toFileInfo();
     m_lastModified = fileInfo.lastModified();
     if (fileInfo.baseName().toLower().contains("lldb-mi"))
         version = "--version";
 
     SynchronousProcess proc;
-    SynchronousProcessResponse response
-            = proc.runBlocking(m_command.toString(), {QLatin1String(version)});
+    SynchronousProcessResponse response = proc.runBlocking({m_command, {version}});
     if (response.result != SynchronousProcessResponse::Finished) {
         m_engineType = NoEngineType;
         return;
@@ -173,7 +172,7 @@ void DebuggerItem::reinitializeFromFile()
         const bool unableToFindAVersion = (0 == version);
         const bool gdbSupportsConfigurationFlag = (version >= 70700);
         if (gdbSupportsConfigurationFlag || unableToFindAVersion) {
-            const auto gdbConfiguration = getConfigurationOfGdbCommand(m_command.toString());
+            const auto gdbConfiguration = getConfigurationOfGdbCommand(m_command);
             const auto gdbTargetAbiString =
                     extractGdbTargetAbiStringFromGdbOutput(gdbConfiguration);
             if (!gdbTargetAbiString.isEmpty()) {
@@ -323,7 +322,7 @@ void DebuggerItem::setEngineType(const DebuggerEngineType &engineType)
     m_engineType = engineType;
 }
 
-void DebuggerItem::setCommand(const FileName &command)
+void DebuggerItem::setCommand(const FilePath &command)
 {
     m_command = command;
 }
@@ -343,7 +342,7 @@ void DebuggerItem::setVersion(const QString &version)
     m_version = version;
 }
 
-void DebuggerItem::setAbis(const QList<Abi> &abis)
+void DebuggerItem::setAbis(const Abis &abis)
 {
     m_abis = abis;
 }

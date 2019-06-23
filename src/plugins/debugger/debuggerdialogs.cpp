@@ -99,36 +99,6 @@ namespace Internal {
 
 ///////////////////////////////////////////////////////////////////////
 //
-// DebuggerKitChooser
-//
-///////////////////////////////////////////////////////////////////////
-
-DebuggerKitChooser::DebuggerKitChooser(Mode mode, QWidget *parent)
-    : KitChooser(parent)
-    , m_hostAbi(Abi::hostAbi())
-    , m_mode(mode)
-{
-    setKitPredicate([this](const Kit *k) {
-        // Match valid debuggers and restrict local debugging to compatible toolchains.
-        auto errors = DebuggerKitAspect::configurationErrors(k);
-        // we do not care for mismatched ABI if we want *any* debugging
-        if (m_mode == AnyDebugging && errors == DebuggerKitAspect::DebuggerDoesNotMatch)
-            errors = DebuggerKitAspect::NoConfigurationError;
-        if (errors)
-            return false;
-        if (m_mode == LocalDebugging)
-            return ToolChainKitAspect::targetAbi(k).os() == m_hostAbi.os();
-        return true;
-    });
-}
-
-QString DebuggerKitChooser::kitToolTip(Kit *k) const
-{
-    return DebuggerKitAspect::displayString(k);
-}
-
-///////////////////////////////////////////////////////////////////////
-//
 // StartApplicationParameters
 //
 ///////////////////////////////////////////////////////////////////////
@@ -150,7 +120,7 @@ public:
     Runnable runnable;
     bool breakAtMain = false;
     bool runInTerminal = false;
-    QString serverStartScript;
+    FilePath serverStartScript;
     QString debugInfoLocation;
 };
 
@@ -172,7 +142,7 @@ QString StartApplicationParameters::displayName() const
 {
     const int maxLength = 60;
 
-    QString name = FileName::fromString(runnable.executable).fileName()
+    QString name = runnable.executable.fileName()
             + ' ' + runnable.commandLineArguments;
     if (name.size() > 60) {
         int index = name.lastIndexOf(' ', maxLength);
@@ -193,12 +163,12 @@ void StartApplicationParameters::toSettings(QSettings *settings) const
     settings->setValue("LastKitId", kitId.toSetting());
     settings->setValue("LastServerPort", serverPort);
     settings->setValue("LastServerAddress", serverAddress);
-    settings->setValue("LastExternalExecutable", runnable.executable);
+    settings->setValue("LastExternalExecutable", runnable.executable.toVariant());
     settings->setValue("LastExternalExecutableArguments", runnable.commandLineArguments);
     settings->setValue("LastExternalWorkingDirectory", runnable.workingDirectory);
     settings->setValue("LastExternalBreakAtMain", breakAtMain);
     settings->setValue("LastExternalRunInTerminal", runInTerminal);
-    settings->setValue("LastServerStartScript", serverStartScript);
+    settings->setValue("LastServerStartScript", serverStartScript.toVariant());
     settings->setValue("LastDebugInfoLocation", debugInfoLocation);
 }
 
@@ -207,12 +177,12 @@ void StartApplicationParameters::fromSettings(const QSettings *settings)
     kitId = Id::fromSetting(settings->value("LastKitId"));
     serverPort = settings->value("LastServerPort").toUInt();
     serverAddress = settings->value("LastServerAddress").toString();
-    runnable.executable = settings->value("LastExternalExecutable").toString();
+    runnable.executable = FilePath::fromVariant(settings->value("LastExternalExecutable"));
     runnable.commandLineArguments = settings->value("LastExternalExecutableArguments").toString();
     runnable.workingDirectory = settings->value("LastExternalWorkingDirectory").toString();
     breakAtMain = settings->value("LastExternalBreakAtMain").toBool();
     runInTerminal = settings->value("LastExternalRunInTerminal").toBool();
-    serverStartScript = settings->value("LastServerStartScript").toString();
+    serverStartScript = FilePath::fromVariant(settings->value("LastServerStartScript"));
     debugInfoLocation = settings->value("LastDebugInfoLocation").toString();
 }
 
@@ -229,9 +199,7 @@ StartApplicationDialog::StartApplicationDialog(QWidget *parent)
     setWindowTitle(tr("Start Debugger"));
 
     d->kitChooser = new KitChooser(this);
-    d->kitChooser->setKitPredicate([](const Kit *k) {
-        return !DebuggerKitAspect::configurationErrors(k);
-    });
+    d->kitChooser->setShowIcons(true);
     d->kitChooser->populate();
 
     d->serverPortLabel = new QLabel(tr("Server port:"), this);
@@ -326,7 +294,7 @@ StartApplicationDialog::StartApplicationDialog(QWidget *parent)
             this, &StartApplicationDialog::updateState);
     connect(d->buttonBox, &QDialogButtonBox::accepted, this, &QDialog::accept);
     connect(d->buttonBox, &QDialogButtonBox::rejected, this, &QDialog::reject);
-    connect(d->historyComboBox, static_cast<void(QComboBox::*)(int)>(&QComboBox::currentIndexChanged),
+    connect(d->historyComboBox, QOverload<int>::of(&QComboBox::currentIndexChanged),
             this, &StartApplicationDialog::historyIndexChanged);
 
     connect(d->channelOverrideEdit, &QLineEdit::textChanged,
@@ -474,8 +442,8 @@ StartApplicationParameters StartApplicationDialog::parameters() const
     StartApplicationParameters result;
     result.serverPort = d->serverPortSpinBox->value();
     result.serverAddress = d->channelOverrideEdit->text();
-    result.runnable.executable = d->localExecutablePathChooser->path();
-    result.serverStartScript = d->serverStartScriptPathChooser->path();
+    result.runnable.executable = d->localExecutablePathChooser->fileName();
+    result.serverStartScript = d->serverStartScriptPathChooser->fileName();
     result.kitId = d->kitChooser->currentKitId();
     result.debugInfoLocation = d->debuginfoPathChooser->path();
     result.runnable.commandLineArguments = d->arguments->text();
@@ -490,8 +458,8 @@ void StartApplicationDialog::setParameters(const StartApplicationParameters &p)
     d->kitChooser->setCurrentKitId(p.kitId);
     d->serverPortSpinBox->setValue(p.serverPort);
     d->channelOverrideEdit->setText(p.serverAddress);
-    d->localExecutablePathChooser->setPath(p.runnable.executable);
-    d->serverStartScriptPathChooser->setPath(p.serverStartScript);
+    d->localExecutablePathChooser->setFileName(p.runnable.executable);
+    d->serverStartScriptPathChooser->setFileName(p.serverStartScript);
     d->debuginfoPathChooser->setPath(p.debugInfoLocation);
     d->arguments->setText(p.runnable.commandLineArguments);
     d->workingDirectory->setPath(p.runnable.workingDirectory);
@@ -520,7 +488,8 @@ AttachToQmlPortDialog::AttachToQmlPortDialog(QWidget *parent)
     setWindowFlags(windowFlags() & ~Qt::WindowContextHelpButtonHint);
     setWindowTitle(tr("Start Debugger"));
 
-    d->kitChooser = new DebuggerKitChooser(DebuggerKitChooser::AnyDebugging, this);
+    d->kitChooser = new KitChooser(this);
+    d->kitChooser->setShowIcons(true);
     d->kitChooser->populate();
 
     d->portSpinBox = new QSpinBox(this);

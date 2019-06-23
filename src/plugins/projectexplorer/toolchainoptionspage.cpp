@@ -43,6 +43,7 @@
 #include <QAction>
 #include <QApplication>
 #include <QCheckBox>
+#include <QCoreApplication>
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QHBoxLayout>
@@ -513,6 +514,7 @@ void ToolChainOptionsWidget::createToolChain(ToolChainFactory *factory, const Co
     if (!tc)
         return;
 
+    tc->setDetection(ToolChain::ManualDetection);
     tc->setLanguage(language);
 
     auto item = insertToolChain(tc, true);
@@ -526,10 +528,14 @@ void ToolChainOptionsWidget::cloneToolChain()
     ToolChainTreeItem *current = currentTreeItem();
     if (!current)
         return;
-    ToolChain *tc = current->toolChain->clone();
 
+    ToolChain *tc = current->toolChain->clone();
     if (!tc)
         return;
+
+    tc->setDetection(ToolChain::ManualDetection);
+    tc->setDisplayName(QCoreApplication::translate("ProjectExplorer::ToolChain", "Clone of %1")
+                        .arg(current->toolChain->displayName()));
 
     auto item = insertToolChain(tc, true);
     m_toAddList.append(item);
@@ -544,7 +550,7 @@ void ToolChainOptionsWidget::updateState()
     if (ToolChainTreeItem *item = currentTreeItem()) {
         ToolChain *tc = item->toolChain;
         canCopy = tc->isValid();
-        canDelete = tc->detection() != ToolChain::AutoDetection;
+        canDelete = tc->detection() != ToolChain::AutoDetectionFromSdk;
     }
 
     m_cloneButton->setEnabled(canCopy);

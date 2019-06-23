@@ -56,7 +56,11 @@ void ResourceHandler::ensureInitialized()
     m_initialized = true;
 
     auto connector = [this](Project *p) {
-        connect(p, &Project::fileListChanged, this, &ResourceHandler::updateResources);
+        connect(p,
+                &Project::fileListChanged,
+                this,
+                &ResourceHandler::updateResources,
+                Qt::QueuedConnection);
     };
 
     for (Project *p : SessionManager::projects())
@@ -88,7 +92,7 @@ void ResourceHandler::updateResourcesHelper(bool updateProjectResources)
         qDebug() << "ResourceHandler::updateResources()" << fileName;
 
     // Filename could change in the meantime.
-    Project *project = SessionManager::projectForFile(Utils::FileName::fromUserInput(fileName));
+    Project *project = SessionManager::projectForFile(Utils::FilePath::fromUserInput(fileName));
     const bool dirty = m_form->property("_q_resourcepathchanged").toBool();
     if (dirty)
         m_form->setDirty(true);
@@ -104,17 +108,14 @@ void ResourceHandler::updateResourcesHelper(bool updateProjectResources)
             return n->filePath().toString() == fileName;
         });
         if (fileNode) {
-            // Slightly hacky:
-            //       The node types do not tell us whether we are dealing with a proper "product",
-            //       e.g. a qbs product or qmake .pro file. We do *not* want qbs groups
-            //       or qmake .pri files here, as they contain only a subset of the relevant
-            //       files. Luckily, the "show in simplified tree" property appears to match
-            //       exactly what we want here.
+            // We do not want qbs groups or qmake .pri files here, as they contain only a subset
+            // of the relevant files.
             do
                 projectNode = fileNode->parentProjectNode();
-            while (projectNode && !projectNode->showInSimpleTree());
+            while (projectNode && !projectNode->isProduct());
         }
-        QTC_ASSERT(projectNode, projectNode = project->rootProjectNode());
+        if (!projectNode)
+            projectNode = project->rootProjectNode();
 
         QStringList projectQrcFiles;
         projectNode->forEachNode([&](FileNode *node) {

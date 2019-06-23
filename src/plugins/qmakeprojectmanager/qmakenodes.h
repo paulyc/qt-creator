@@ -30,7 +30,7 @@
 
 #include <projectexplorer/projectnodes.h>
 
-namespace Utils { class FileName; }
+namespace Utils { class FilePath; }
 
 namespace QmakeProjectManager {
 class QmakeProFileNode;
@@ -41,7 +41,7 @@ class QMAKEPROJECTMANAGER_EXPORT QmakePriFileNode : public ProjectExplorer::Proj
 {
 public:
     QmakePriFileNode(QmakeProject *project, QmakeProFileNode *qmakeProFileNode,
-                     const Utils::FileName &filePath, QmakePriFile *pf);
+                     const Utils::FilePath &filePath, QmakePriFile *pf);
 
     QmakePriFile *priFile() const;
 
@@ -60,6 +60,7 @@ public:
     bool deleteFiles(const QStringList &filePaths) override;
     bool canRenameFile(const QString &filePath, const QString &newFilePath) override;
     bool renameFile(const QString &filePath, const QString &newFilePath) override;
+    bool addDependencies(const QStringList &dependencies) override;
     AddNewInformation addNewInformation(const QStringList &files, Node *context) const override;
 
     bool deploysFolder(const QString &folder) const override;
@@ -78,7 +79,7 @@ private:
 class QMAKEPROJECTMANAGER_EXPORT QmakeProFileNode : public QmakePriFileNode
 {
 public:
-    QmakeProFileNode(QmakeProject *project, const Utils::FileName &filePath, QmakeProFile *pf);
+    QmakeProFileNode(QmakeProject *project, const Utils::FilePath &filePath, QmakeProFile *pf);
 
     QmakeProFile *proFile() const;
 
@@ -97,6 +98,8 @@ public:
     bool parseInProgress() const override;
     bool validParse() const override;
 
+    void build() override;
+
     QStringList targetApplications() const override;
     AddNewInformation addNewInformation(const QStringList &files, Node *context) const override;
     QVariant data(Core::Id role) const override;
@@ -104,7 +107,7 @@ public:
 
     QmakeProjectManager::ProjectType projectType() const;
     QString buildDir() const;
-    Utils::FileName buildDir(QmakeBuildConfiguration *bc) const;
+    Utils::FilePath buildDir(QmakeBuildConfiguration *bc) const;
 
     QStringList variableValue(const Variable var) const;
     QString singleVariableValue(const Variable var) const;

@@ -285,7 +285,7 @@ CallgrindToolPrivate::CallgrindToolPrivate()
         runControl->createMainWorker();
         const auto runnable = dlg.runnable();
         runControl->setRunnable(runnable);
-        runControl->setDisplayName(runnable.executable);
+        runControl->setDisplayName(runnable.executable.toUserOutput());
         ProjectExplorerPlugin::startRunControl(runControl);
     });
 
@@ -509,7 +509,7 @@ CallgrindToolPrivate::CallgrindToolPrivate()
     m_searchFilter = new QLineEdit;
     m_searchFilter->setPlaceholderText(CallgrindTool::tr("Filter..."));
     connect(m_searchFilter, &QLineEdit::textChanged,
-            &m_updateTimer, static_cast<void(QTimer::*)()>(&QTimer::start));
+            &m_updateTimer, QOverload<>::of(&QTimer::start));
 
     setCostFormat(settings->costFormat());
     enableCycleDetection(settings->detectCycles());
@@ -982,7 +982,7 @@ void CallgrindToolPrivate::createTextMarks()
             continue;
         locations << location;
 
-        m_textMarks.append(new CallgrindTextMark(index, FileName::fromString(fileName), lineNumber));
+        m_textMarks.append(new CallgrindTextMark(index, FilePath::fromString(fileName), lineNumber));
     }
 }
 

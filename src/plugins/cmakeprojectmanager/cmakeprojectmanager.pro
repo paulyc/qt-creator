@@ -7,6 +7,7 @@ HEADERS = builddirmanager.h \
     cmakebuildstep.h \
     cmakebuildtarget.h \
     cmakeconfigitem.h \
+    cmakeprocess.h \
     cmakeproject.h \
     cmakeprojectimporter.h \
     cmakeprojectplugin.h \
@@ -33,6 +34,10 @@ HEADERS = builddirmanager.h \
     cmakespecificsettingspage.h \
     configmodel.h \
     configmodelitemdelegate.h \
+    fileapidataextractor.h \
+    fileapiparser.h \
+    fileapireader.h \
+    projecttreehelper.h \
     servermode.h \
     servermodereader.h \
     tealeafreader.h
@@ -41,8 +46,8 @@ SOURCES = builddirmanager.cpp \
     builddirparameters.cpp \
     builddirreader.cpp \
     cmakebuildstep.cpp \
-    cmakebuildtarget.cpp \
     cmakeconfigitem.cpp \
+    cmakeprocess.cpp \
     cmakeproject.cpp \
     cmakeprojectimporter.cpp \
     cmakeprojectplugin.cpp \
@@ -67,6 +72,10 @@ SOURCES = builddirmanager.cpp \
     cmakespecificsettingspage.cpp \
     configmodel.cpp \
     configmodelitemdelegate.cpp \
+    fileapidataextractor.cpp \
+    fileapiparser.cpp \
+    fileapireader.cpp \
+    projecttreehelper.cpp \
     servermode.cpp \
     servermodereader.cpp \
     tealeafreader.cpp

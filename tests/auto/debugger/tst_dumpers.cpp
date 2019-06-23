@@ -90,10 +90,11 @@ static bool generateEnvironmentSettings(Utils::Environment &env,
     // if Creator is launched within a session set up by setenv.cmd.
     env.unset("ORIGINALPATH");
     run.setEnvironment(env);
-    const QString cmdPath = QString::fromLocal8Bit(qgetenv("COMSPEC"));
+    const Utils::FilePath cmdPath
+            = Utils::FilePath::fromString(QString::fromLocal8Bit(qgetenv("COMSPEC")));
     // Windows SDK setup scripts require command line switches for environment expansion.
     QString cmdArguments = " /E:ON /V:ON /c \"" + QDir::toNativeSeparators(saver.fileName()) + '"';
-    run.setCommand(cmdPath, cmdArguments);
+    run.setCommand(Utils::CommandLine(cmdPath, cmdArguments, Utils::CommandLine::Raw));
     run.start();
 
     if (!run.waitForStarted()) {
@@ -3685,7 +3686,7 @@ void tst_Dumpers::dumper_data()
 
                     "QList<int> list;\n"
                     "list << 1 << 2 << 3;\n"
-                    "QVariant v3 = qVariantFromValue(list);\n"
+                    "QVariant v3 = QVariant::fromValue(list);\n"
                     "unused(&list, &v3);\n\n")
 
                + CoreProfile()

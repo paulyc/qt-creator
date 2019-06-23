@@ -272,7 +272,7 @@ void BaseFileFind::runNewSearch(const QString &txt, FindFlags findFlags,
     parameters.additionalParameters = additionalParameters();
     parameters.searchEngineParameters = currentSearchEngine()->parameters();
     parameters.searchEngineIndex = d->m_currentSearchEngineIndex;
-    search->setUserData(qVariantFromValue(parameters));
+    search->setUserData(QVariant::fromValue(parameters));
     connect(search, &SearchResult::activated, this, [this, search](const SearchResultItem &item) {
         openEditor(search, item);
     });
@@ -497,12 +497,12 @@ QStringList BaseFileFind::replaceAll(const QString &text,
 
     // Checking for files without write permissions
     QHashIterator<QString, QList<SearchResultItem> > it(changes);
-    QSet<QString> roFiles;
+    QSet<FilePath> roFiles;
     while (it.hasNext()) {
         it.next();
         const QFileInfo fileInfo(it.key());
         if (!fileInfo.isWritable())
-            roFiles.insert(it.key());
+            roFiles.insert(FilePath::fromString(it.key()));
     }
 
     // Query the user for permissions

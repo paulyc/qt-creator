@@ -37,16 +37,16 @@ public:
     AndroidGdbServerKitAspect();
 
     void setup(ProjectExplorer::Kit *) override;
-    QList<ProjectExplorer::Task> validate(const ProjectExplorer::Kit *) const override;
+    ProjectExplorer::Tasks validate(const ProjectExplorer::Kit *) const override;
     bool isApplicableToKit(const ProjectExplorer::Kit *k) const override;
     ItemList toUserOutput(const ProjectExplorer::Kit *) const override;
 
     ProjectExplorer::KitAspectWidget *createConfigWidget(ProjectExplorer::Kit *) const override;
 
     static Core::Id id();
-    static Utils::FileName gdbServer(const ProjectExplorer::Kit *kit);
-    static void setGdbSever(ProjectExplorer::Kit *kit, const Utils::FileName &gdbServerCommand);
-    static Utils::FileName autoDetect(const ProjectExplorer::Kit *kit);
+    static Utils::FilePath gdbServer(const ProjectExplorer::Kit *kit);
+    static void setGdbSever(ProjectExplorer::Kit *kit, const Utils::FilePath &gdbServerCommand);
+    static Utils::FilePath autoDetect(const ProjectExplorer::Kit *kit);
 };
 
 } // namespace Internal

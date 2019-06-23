@@ -41,11 +41,8 @@ class NimToolChainFactory : public ProjectExplorer::ToolChainFactory
 public:
     NimToolChainFactory();
 
-    bool canCreate() final;
-    ProjectExplorer::ToolChain *create() final;
-    ProjectExplorer::ToolChain *restore(const QVariantMap &data) final;
     QList<ProjectExplorer::ToolChain *> autoDetect(const QList<ProjectExplorer::ToolChain *> &alreadyKnown) final;
-    QList<ProjectExplorer::ToolChain *> autoDetect(const Utils::FileName &compilerPath, const Core::Id &language) final;
+    QList<ProjectExplorer::ToolChain *> autoDetect(const Utils::FilePath &compilerPath, const Core::Id &language) final;
 };
 
 class NimToolChainConfigWidget : public ProjectExplorer::ToolChainConfigWidget

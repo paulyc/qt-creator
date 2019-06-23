@@ -384,7 +384,7 @@ IosQmlProfilerSupport::IosQmlProfilerSupport(RunControl *runControl)
 
     auto iosRunConfig = qobject_cast<IosRunConfiguration *>(runControl->runConfiguration());
     Runnable runnable;
-    runnable.executable = iosRunConfig->localExecutable().toUserOutput();
+    runnable.executable = iosRunConfig->localExecutable();
     runnable.commandLineArguments =
             runControl->aspect<ArgumentsAspect>()->arguments(iosRunConfig->macroExpander());
     runControl->setDisplayName(iosRunConfig->applicationName());
@@ -442,16 +442,16 @@ void IosDebugSupport::start()
         setStartMode(AttachToRemoteProcess);
         setIosPlatform("remote-ios");
         QString osVersion = dev->osVersion();
-        FileName deviceSdk1 = FileName::fromString(QDir::homePath()
+        FilePath deviceSdk1 = FilePath::fromString(QDir::homePath()
                                              + "/Library/Developer/Xcode/iOS DeviceSupport/"
                                              + osVersion + "/Symbols");
         QString deviceSdk;
         if (deviceSdk1.toFileInfo().isDir()) {
             deviceSdk = deviceSdk1.toString();
         } else {
-            FileName deviceSdk2 = IosConfigurations::developerPath()
-                    .appendPath("Platforms/iPhoneOS.platform/DeviceSupport/")
-                    .appendPath(osVersion).appendPath("Symbols");
+            const FilePath deviceSdk2 = IosConfigurations::developerPath()
+                    .pathAppended("Platforms/iPhoneOS.platform/DeviceSupport/"
+                                  + osVersion + "/Symbols");
             if (deviceSdk2.toFileInfo().isDir()) {
                 deviceSdk = deviceSdk2.toString();
             } else {
@@ -480,12 +480,12 @@ void IosDebugSupport::start()
     const bool cppDebug = isCppDebugging();
     const bool qmlDebug = isQmlDebugging();
     if (cppDebug) {
-        setInferiorExecutable(iosRunConfig->localExecutable().toString());
+        setInferiorExecutable(iosRunConfig->localExecutable());
         setRemoteChannel("connect://localhost:" + gdbServerPort.toString());
 
         QString bundlePath = iosRunConfig->bundleDirectory().toString();
         bundlePath.chop(4);
-        FileName dsymPath = FileName::fromString(bundlePath.append(".dSYM"));
+        FilePath dsymPath = FilePath::fromString(bundlePath.append(".dSYM"));
         if (dsymPath.exists() && dsymPath.toFileInfo().lastModified()
                 < QFileInfo(iosRunConfig->localExecutable().toUserOutput()).lastModified()) {
             TaskHub::addTask(Task::Warning,

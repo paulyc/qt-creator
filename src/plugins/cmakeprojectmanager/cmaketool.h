@@ -31,6 +31,7 @@
 #include <texteditor/codeassist/keywordscompletionassist.h>
 
 #include <utils/fileutils.h>
+#include <utils/optional.h>
 #include <utils/synchronousprocess.h>
 
 #include <QObject>
@@ -48,10 +49,9 @@ namespace Internal {  class IntrospectionData;  }
 class CMAKE_EXPORT CMakeTool
 {
 public:
-    enum Detection {
-        ManualDetection,
-        AutoDetection
-    };
+    enum Detection { ManualDetection, AutoDetection };
+
+    enum ReaderType { TeaLeaf, ServerMode, FileApi };
 
     struct Version
     {
@@ -76,7 +76,7 @@ public:
         bool matches(const QString &n, const QString &ex) const;
     };
 
-    using PathMapper = std::function<Utils::FileName (const Utils::FileName &)>;
+    using PathMapper = std::function<Utils::FilePath (const Utils::FilePath &)>;
 
     explicit CMakeTool(Detection d, const Core::Id &id);
     explicit CMakeTool(const QVariantMap &map, bool fromSdk);
@@ -89,16 +89,18 @@ public:
     Core::Id id() const { return m_id; }
     QVariantMap toMap () const;
 
-    void setCMakeExecutable(const Utils::FileName &executable);
+    void setCMakeExecutable(const Utils::FilePath &executable);
     void setAutorun(bool autoRun);
     void setAutoCreateBuildDirectory(bool autoBuildDir);
 
-    Utils::FileName cmakeExecutable() const;
+    Utils::FilePath cmakeExecutable() const;
     bool isAutoRun() const;
     bool autoCreateBuildDirectory() const;
     QList<Generator> supportedGenerators() const;
     TextEditor::Keywords keywords();
     bool hasServerMode() const;
+    bool hasFileApi() const;
+    QVector<std::pair<QString, int>> supportedFileApiObjects() const;
     Version version() const;
 
     bool isAutoDetected() const;
@@ -107,6 +109,8 @@ public:
 
     void setPathMapper(const PathMapper &includePathMapper);
     PathMapper pathMapper() const;
+
+    ReaderType readerType() const;
 
 private:
     enum class QueryType {
@@ -129,11 +133,13 @@ private:
 
     Core::Id m_id;
     QString m_displayName;
-    Utils::FileName m_executable;
+    Utils::FilePath m_executable;
 
     bool m_isAutoRun = true;
     bool m_isAutoDetected = false;
     bool m_autoCreateBuildDirectory = false;
+
+    Utils::optional<ReaderType> m_readerType;
 
     std::unique_ptr<Internal::IntrospectionData> m_introspection;
 

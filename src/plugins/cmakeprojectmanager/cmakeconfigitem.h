@@ -25,6 +25,8 @@
 
 #pragma once
 
+#include <utils/optional.h>
+
 #include <QByteArray>
 #include <QList>
 
@@ -32,7 +34,7 @@
 
 namespace ProjectExplorer { class Kit; }
 namespace Utils {
-class FileName;
+class FilePath;
 class MacroExpander;
 } // namespace Utils
 
@@ -50,6 +52,7 @@ public:
                                    const QList<CMakeConfigItem> &input);
     static QStringList cmakeSplitValue(const QString &in, bool keepEmpty = false);
     static Type typeStringToType(const QByteArray &typeString);
+    static Utils::optional<bool> toBool(const QByteArray &value);
     bool isNull() const { return key.isEmpty(); }
 
     QString expandedValue(const ProjectExplorer::Kit *k) const;
@@ -57,7 +60,7 @@ public:
 
     static std::function<bool(const CMakeConfigItem &a, const CMakeConfigItem &b)> sortOperator();
     static CMakeConfigItem fromString(const QString &s);
-    static QList<CMakeConfigItem> itemsFromFile(const Utils::FileName &input, QString *errorMessage);
+    static QList<CMakeConfigItem> itemsFromFile(const Utils::FilePath &input, QString *errorMessage);
     QString toString(const Utils::MacroExpander *expander = nullptr) const;
     QString toArgument(const Utils::MacroExpander *expander = nullptr) const;
 

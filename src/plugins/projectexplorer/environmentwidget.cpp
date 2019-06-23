@@ -30,11 +30,12 @@
 
 #include <utils/detailswidget.h>
 #include <utils/environment.h>
-#include <utils/environmentmodel.h>
 #include <utils/environmentdialog.h>
+#include <utils/environmentmodel.h>
 #include <utils/headerviewstretcher.h>
 #include <utils/hostosinfo.h>
 #include <utils/itemviews.h>
+#include <utils/namevaluevalidator.h>
 #include <utils/tooltip/tooltip.h>
 
 #include <QDir>
@@ -51,48 +52,6 @@
 
 namespace ProjectExplorer {
 
-class EnvironmentValidator : public QValidator
-{
-    Q_OBJECT
-public:
-    EnvironmentValidator(QWidget *parent, Utils::EnvironmentModel *model, QTreeView *view,
-                         const QModelIndex &index) :
-        QValidator(parent), m_model(model), m_view(view), m_index(index)
-    {
-        m_hideTipTimer.setInterval(2000);
-        m_hideTipTimer.setSingleShot(true);
-        connect(&m_hideTipTimer, &QTimer::timeout,
-                this, [](){Utils::ToolTip::hide();});
-    }
-
-    QValidator::State validate(QString &in, int &pos) const override
-    {
-        Q_UNUSED(pos)
-        QModelIndex idx = m_model->variableToIndex(in);
-        if (idx.isValid() && idx != m_index)
-            return QValidator::Intermediate;
-        Utils::ToolTip::hide();
-        m_hideTipTimer.stop();
-        return QValidator::Acceptable;
-    }
-
-    void fixup(QString &input) const override
-    {
-        Q_UNUSED(input)
-
-        QPoint pos = m_view->mapToGlobal(m_view->visualRect(m_index).topLeft());
-        pos -= Utils::ToolTip::offsetFromPosition();
-        Utils::ToolTip::show(pos, tr("Variable already exists."));
-        m_hideTipTimer.start();
-        // do nothing
-    }
-private:
-    Utils::EnvironmentModel *m_model;
-    QTreeView *m_view;
-    QModelIndex m_index;
-    mutable QTimer m_hideTipTimer;
-};
-
 class EnvironmentDelegate : public QStyledItemDelegate
 {
 public:
@@ -108,7 +67,8 @@ public:
             return w;
 
         if (auto edit = qobject_cast<QLineEdit *>(w))
-            edit->setValidator(new EnvironmentValidator(edit, m_model, m_view, index));
+            edit->setValidator(new Utils::NameValueValidator(
+                edit, m_model, m_view, index, EnvironmentWidget::tr("Variable already exists.")));
         return w;
     }
 private:
@@ -127,6 +87,7 @@ public:
     Utils::EnvironmentModel *m_model;
 
     QString m_baseEnvironmentText;
+    EnvironmentWidget::OpenTerminalFunc m_openTerminalFunc;
     Utils::DetailsWidget *m_detailsContainer;
     QTreeView *m_environmentView;
     QPushButton *m_editButton;
@@ -227,6 +188,7 @@ EnvironmentWidget::EnvironmentWidget(QWidget *parent, Type type, QWidget *additi
     d->m_terminalButton = new QPushButton(this);
     d->m_terminalButton->setText(tr("Open &Terminal"));
     d->m_terminalButton->setToolTip(tr("Open a terminal with this environment set up."));
+    d->m_terminalButton->setEnabled(type == TypeLocal);
     buttonLayout->addWidget(d->m_terminalButton);
     buttonLayout->addStretch();
 
@@ -251,7 +213,14 @@ EnvironmentWidget::EnvironmentWidget(QWidget *parent, Type type, QWidget *additi
     connect(d->m_environmentView->selectionModel(), &QItemSelectionModel::currentChanged,
             this, &EnvironmentWidget::environmentCurrentIndexChanged);
     connect(d->m_terminalButton, &QAbstractButton::clicked,
-            this, &EnvironmentWidget::openTerminal);
+            this, [this] {
+        Utils::Environment env = d->m_model->baseEnvironment();
+        env.modify(d->m_model->userChanges());
+        if (d->m_openTerminalFunc)
+            d->m_openTerminalFunc(env);
+        else
+            Core::FileUtils::openTerminal(QDir::currentPath(), env);
+    });
     connect(d->m_detailsContainer, &Utils::DetailsWidget::linkActivated,
             this, &EnvironmentWidget::linkActivated);
 
@@ -292,20 +261,26 @@ void EnvironmentWidget::setBaseEnvironmentText(const QString &text)
     updateSummaryText();
 }
 
-QList<Utils::EnvironmentItem> EnvironmentWidget::userChanges() const
+Utils::EnvironmentItems EnvironmentWidget::userChanges() const
 {
     return d->m_model->userChanges();
 }
 
-void EnvironmentWidget::setUserChanges(const QList<Utils::EnvironmentItem> &list)
+void EnvironmentWidget::setUserChanges(const Utils::EnvironmentItems &list)
 {
     d->m_model->setUserChanges(list);
     updateSummaryText();
 }
 
+void EnvironmentWidget::setOpenTerminalFunc(const EnvironmentWidget::OpenTerminalFunc &func)
+{
+    d->m_openTerminalFunc = func;
+    d->m_terminalButton->setEnabled(bool(func));
+}
+
 void EnvironmentWidget::updateSummaryText()
 {
-    QList<Utils::EnvironmentItem> list = d->m_model->userChanges();
+    Utils::EnvironmentItems list = d->m_model->userChanges();
     Utils::EnvironmentItem::sort(&list);
 
     QString text;
@@ -440,21 +415,12 @@ void EnvironmentWidget::prependPathButtonClicked()
 
 void EnvironmentWidget::batchEditEnvironmentButtonClicked()
 {
-    const QList<Utils::EnvironmentItem> changes = d->m_model->userChanges();
+    const Utils::EnvironmentItems changes = d->m_model->userChanges();
 
-    bool ok;
-    const QList<Utils::EnvironmentItem> newChanges = Utils::EnvironmentDialog::getEnvironmentItems(&ok, this, changes);
-    if (!ok)
-        return;
+    const auto newChanges = Utils::EnvironmentDialog::getEnvironmentItems(this, changes);
 
-    d->m_model->setUserChanges(newChanges);
-}
-
-void EnvironmentWidget::openTerminal()
-{
-    Utils::Environment env = d->m_model->baseEnvironment();
-    env.modify(d->m_model->userChanges());
-    Core::FileUtils::openTerminal(QDir::currentPath(), env);
+    if (newChanges)
+        d->m_model->setUserChanges(*newChanges);
 }
 
 void EnvironmentWidget::environmentCurrentIndexChanged(const QModelIndex &current)
@@ -483,5 +449,3 @@ void EnvironmentWidget::invalidateCurrentIndex()
 }
 
 } // namespace ProjectExplorer
-
-#include "environmentwidget.moc"

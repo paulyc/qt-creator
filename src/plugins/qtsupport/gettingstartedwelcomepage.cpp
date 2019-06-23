@@ -151,17 +151,17 @@ QString ExamplesWelcomePage::copyToAlternativeLocation(const QFileInfo& proFileI
         } else {
             QString error;
             QString targetDir = destBaseDir + QLatin1Char('/') + exampleDirName;
-            if (FileUtils::copyRecursively(FileName::fromString(projectDir),
-                    FileName::fromString(targetDir), &error)) {
+            if (FileUtils::copyRecursively(FilePath::fromString(projectDir),
+                    FilePath::fromString(targetDir), &error)) {
                 // set vars to new location
                 const QStringList::Iterator end = filesToOpen.end();
                 for (QStringList::Iterator it = filesToOpen.begin(); it != end; ++it)
                     it->replace(projectDir, targetDir);
 
                 foreach (const QString &dependency, dependencies) {
-                    FileName targetFile = FileName::fromString(targetDir);
-                    targetFile.appendPath(QDir(dependency).dirName());
-                    if (!FileUtils::copyRecursively(FileName::fromString(dependency), targetFile,
+                    const FilePath targetFile = FilePath::fromString(targetDir)
+                            .pathAppended(QDir(dependency).dirName());
+                    if (!FileUtils::copyRecursively(FilePath::fromString(dependency), targetFile,
                             &error)) {
                         QMessageBox::warning(ICore::mainWindow(), tr("Cannot Copy Project"), error);
                         // do not fail, just warn;
@@ -644,7 +644,7 @@ public:
             ExampleSetModel *exampleSetModel = m_examplesModel->exampleSetModel();
             exampleSetSelector->setModel(exampleSetModel);
             exampleSetSelector->setCurrentIndex(exampleSetModel->selectedExampleSet());
-            connect(exampleSetSelector, static_cast<void(QComboBox::*)(int)>(&QComboBox::activated),
+            connect(exampleSetSelector, QOverload<int>::of(&QComboBox::activated),
                     exampleSetModel, &ExampleSetModel::selectExampleSet);
             connect(exampleSetModel, &ExampleSetModel::selectedExampleSetChanged,
                     exampleSetSelector, &QComboBox::setCurrentIndex);

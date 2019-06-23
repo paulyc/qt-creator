@@ -26,13 +26,12 @@
 #pragma once
 
 #include "qmakeprojectmanager_global.h"
+
 #include <projectexplorer/abstractprocessstep.h>
 
-#include <QStringList>
+#include <utils/fileutils.h>
 
 #include <memory>
-
-namespace Utils { class FileName; }
 
 namespace ProjectExplorer {
 class Abi;
@@ -134,10 +133,14 @@ public:
     // arguments set by the user
     QString userArguments();
     void setUserArguments(const QString &arguments);
-    // QMake extra arguments. Not user editable.
+    // Extra arguments for qmake and pro file parser. Not user editable via UI.
     QStringList extraArguments() const;
     void setExtraArguments(const QStringList &args);
-    Utils::FileName mkspec() const;
+    /* Extra arguments for pro file parser only. Not user editable via UI.
+     * This function is used in 3rd party plugin SailfishOS. */
+    QStringList extraParserArguments() const;
+    void setExtraParserArguments(const QStringList &args);
+    QString mkspec() const;
     bool linkQmlDebuggingLibrary() const;
     void setLinkQmlDebuggingLibrary(bool enable);
     bool useQtQuickCompiler() const;
@@ -145,7 +148,7 @@ public:
     bool separateDebugInfo() const;
     void setSeparateDebugInfo(bool enable);
 
-    QString makeCommand() const;
+    Utils::FilePath makeCommand() const;
     QString makeArguments(const QString &makefile) const;
     QString effectiveQMakeCall() const;
 
@@ -167,16 +170,18 @@ private:
     void doCancel() override;
     void finish(bool success) override;
 
-    void startOneCommand(const QString &command, const QString &args);
+    void startOneCommand(const Utils::FilePath &command, const QString &args);
     void runNextCommand();
 
-    QString m_qmakeExecutable;
+    Utils::FilePath m_qmakeExecutable;
     QString m_qmakeArguments;
-    QString m_makeExecutable;
+    Utils::FilePath m_makeExecutable;
     QString m_makeArguments;
     QString m_userArgs;
-    // Extra arguments for qmake.
+    // Extra arguments for qmake and pro file parser
     QStringList m_extraArgs;
+    // Extra arguments for pro file parser only
+    QStringList m_extraParserArgs;
 
     // last values
     enum class State { IDLE = 0, RUN_QMAKE, RUN_MAKE_QMAKE_ALL, POST_PROCESS };

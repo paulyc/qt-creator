@@ -64,7 +64,6 @@ using namespace Internal;
 
 namespace Internal {
 
-
 class ApplicationLauncherPrivate : public QObject
 {
 public:
@@ -379,11 +378,12 @@ void ApplicationLauncherPrivate::start(const Runnable &runnable, const IDevice::
     #endif
 
         if (!m_useTerminal) {
-            m_guiProcess.setCommand(runnable.executable, runnable.commandLineArguments);
+            m_guiProcess.setCommand(runnable.commandLine());
             m_guiProcess.closeWriteChannel();
             m_guiProcess.start();
         } else {
-            m_consoleProcess.start(runnable.executable, runnable.commandLineArguments);
+            m_consoleProcess.setCommand(runnable.commandLine());
+            m_consoleProcess.start();
         }
     } else {
         QTC_ASSERT(m_state == Inactive, return);

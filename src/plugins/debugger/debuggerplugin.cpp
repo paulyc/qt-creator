@@ -674,7 +674,7 @@ public:
                 message = tr("0x%1 hit").arg(data.address, 0, 16);
             } else {
                 //: Message tracepoint: %1 file, %2 line %3 function hit.
-                message = tr("%1:%2 %3() hit").arg(FileName::fromString(data.fileName).fileName()).
+                message = tr("%1:%2 %3() hit").arg(FilePath::fromString(data.fileName).fileName()).
                         arg(data.lineNumber).
                         arg(cppFunctionAt(data.fileName, data.lineNumber));
             }
@@ -807,7 +807,7 @@ static QString msgParameterMissing(const QString &a)
     return DebuggerPlugin::tr("Option \"%1\" is missing the parameter.").arg(a);
 }
 
-static Kit *guessKitFromAbis(const QList<Abi> &abis)
+static Kit *guessKitFromAbis(const Abis &abis)
 {
     Kit *kit = nullptr;
 
@@ -851,7 +851,7 @@ bool DebuggerPluginPrivate::parseArgument(QStringList::const_iterator &it,
 
         Kit *kit = nullptr;
         DebuggerStartMode startMode = StartExternal;
-        QString executable;
+        FilePath executable;
         QString remoteChannel;
         QString coreFile;
         bool useTerminal = false;
@@ -864,7 +864,7 @@ bool DebuggerPluginPrivate::parseArgument(QStringList::const_iterator &it,
                     if (key.isEmpty()) {
                         continue;
                     } else if (executable.isEmpty()) {
-                        executable = key;
+                        executable = FilePath::fromString(key);
                     } else {
                         *errorMessage = DebuggerPlugin::tr("Only one executable allowed.");
                         return false;
@@ -885,7 +885,7 @@ bool DebuggerPluginPrivate::parseArgument(QStringList::const_iterator &it,
             }
         }
         if (!kit)
-            kit = guessKitFromAbis(Abi::abisOfBinary(FileName::fromString(executable)));
+            kit = guessKitFromAbis(Abi::abisOfBinary(executable));
 
         auto runControl = new RunControl(ProjectExplorer::Constants::DEBUG_RUN_MODE);
         runControl->setKit(kit);
@@ -910,8 +910,8 @@ bool DebuggerPluginPrivate::parseArgument(QStringList::const_iterator &it,
             debugger->setStartMessage(tr("Attaching to core file %1.").arg(coreFile));
         } else {
             debugger->setStartMode(StartExternal);
-            debugger->setRunControlName(tr("Executable file \"%1\"").arg(executable));
-            debugger->setStartMessage(tr("Debugging file %1.").arg(executable));
+            debugger->setRunControlName(tr("Executable file \"%1\"").arg(executable.toUserOutput()));
+            debugger->setStartMessage(tr("Debugging file %1.").arg(executable.toUserOutput()));
         }
         debugger->setUseTerminal(useTerminal);
 
@@ -1588,7 +1588,7 @@ void DebuggerPluginPrivate::attachCore()
     if (dlg.exec() != QDialog::Accepted)
         return;
 
-    setConfigValue("LastExternalExecutableFile", dlg.symbolFile());
+    setConfigValue("LastExternalExecutableFile", dlg.symbolFile().toVariant());
     setConfigValue("LastLocalCoreFile", dlg.localCoreFile());
     setConfigValue("LastRemoteCoreFile", dlg.remoteCoreFile());
     setConfigValue("LastExternalKit", dlg.kit()->id().toSetting());
@@ -1597,11 +1597,11 @@ void DebuggerPluginPrivate::attachCore()
 
     auto runControl = new RunControl(ProjectExplorer::Constants::DEBUG_RUN_MODE);
     runControl->setKit(dlg.kit());
+    runControl->setDisplayName(tr("Core file \"%1\"")
+        .arg(dlg.useLocalCoreFile() ? dlg.localCoreFile() : dlg.remoteCoreFile()));
     auto debugger = new DebuggerRunTool(runControl);
     debugger->setInferiorExecutable(dlg.symbolFile());
     debugger->setCoreFileName(dlg.localCoreFile());
-    debugger->setRunControlName(tr("Core file \"%1\"")
-        .arg(dlg.useLocalCoreFile() ? dlg.localCoreFile() : dlg.remoteCoreFile()));
     debugger->setStartMode(AttachCore);
     debugger->setCloseMode(DetachAtClose);
     debugger->setOverrideStartScript(dlg.overrideStartScript());
@@ -1640,7 +1640,6 @@ public:
     {
         setId("AttachToRunningProcess");
         setUsePortsGatherer(true, false);
-        portsGatherer()->setDevice(runControl->device());
 
         auto gdbServer = new GdbServerRunner(runControl, portsGatherer());
         gdbServer->setUseMulti(false);
@@ -1660,7 +1659,8 @@ public:
 
 void DebuggerPluginPrivate::attachToRunningApplication()
 {
-    auto kitChooser = new DebuggerKitChooser(DebuggerKitChooser::AnyDebugging);
+    auto kitChooser = new KitChooser;
+    kitChooser->setShowIcons(true);
 
     auto dlg = new DeviceProcessesDialog(kitChooser, ICore::dialogParent());
     dlg->addAcceptButton(DeviceProcessesDialog::tr("&Attach to Process"));
@@ -1683,6 +1683,8 @@ void DebuggerPluginPrivate::attachToRunningApplication()
     } else {
         auto runControl = new RunControl(ProjectExplorer::Constants::DEBUG_RUN_MODE);
         runControl->setKit(kit);
+        //: %1: PID
+        runControl->setDisplayName(tr("Process %1").arg(process.pid));
         auto debugger = new RemoteAttachRunner(runControl,  process.pid);
         debugger->startRunControl();
     }
@@ -1737,10 +1739,11 @@ RunControl *DebuggerPluginPrivate::attachToRunningProcess(Kit *kit,
 
     auto runControl = new RunControl(ProjectExplorer::Constants::DEBUG_RUN_MODE);
     runControl->setKit(kit);
+    //: %1: PID
+    runControl->setDisplayName(tr("Process %1").arg(process.pid));
     auto debugger = new DebuggerRunTool(runControl);
     debugger->setAttachPid(ProcessHandle(process.pid));
-    debugger->setRunControlName(tr("Process %1").arg(process.pid));
-    debugger->setInferiorExecutable(process.exe);
+    debugger->setInferiorExecutable(FilePath::fromString(process.exe));
     debugger->setInferiorDevice(device);
     debugger->setStartMode(AttachExternal);
     debugger->setCloseMode(DetachAtClose);
@@ -2620,8 +2623,8 @@ void DebuggerUnitTests::testDebuggerMatching()
 
     auto expectedLevel = static_cast<DebuggerItem::MatchLevel>(result);
 
-    QList<Abi> debuggerAbis;
-    foreach (const QString &abi, debugger)
+    Abis debuggerAbis;
+    for (const QString &abi : qAsConst(debugger))
         debuggerAbis << Abi::fromString(abi);
 
     DebuggerItem item;
@@ -2634,15 +2637,14 @@ void DebuggerUnitTests::testDebuggerMatching()
     QCOMPARE(expectedLevel, level);
 }
 
-
-QList<QObject *> DebuggerPlugin::createTestObjects() const
+QVector<QObject *> DebuggerPlugin::createTestObjects() const
 {
     return {new DebuggerUnitTests};
 }
 
 #else // ^-- if WITH_TESTS else --v
 
-QList<QObject *> DebuggerPlugin::createTestObjects() const
+QVector<QObject *> DebuggerPlugin::createTestObjects() const
 {
     return {};
 }

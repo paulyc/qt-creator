@@ -529,6 +529,26 @@ BaseClientInterface *StdIOSettings::createInterface() const
     return new StdIOClientInterface(m_executable, arguments());
 }
 
+class JsonTreeItemDelegate : public QStyledItemDelegate
+{
+public:
+    QString displayText(const QVariant &value, const QLocale &) const override
+    {
+        QString result = value.toString();
+        if (result.size() == 1) {
+            switch (result.at(0).toLatin1()) {
+            case '\n':
+                return QString("\\n");
+            case '\t':
+                return QString("\\t");
+            case '\r':
+                return QString("\\r");
+            }
+        }
+        return result;
+    }
+};
+
 static QWidget *createCapabilitiesView(const QJsonValue &capabilities)
 {
     auto root = new Utils::JsonTreeItem("Capabilities", capabilities);
@@ -543,6 +563,7 @@ static QWidget *createCapabilitiesView(const QJsonValue &capabilities)
     capabilitiesView->setModel(capabilitiesModel);
     capabilitiesView->setAlternatingRowColors(true);
     capabilitiesView->header()->setSectionResizeMode(QHeaderView::ResizeToContents);
+    capabilitiesView->setItemDelegate(new JsonTreeItemDelegate);
     return capabilitiesView;
 }
 
@@ -761,7 +782,7 @@ QString StdIOSettingsWidget::arguments() const
     return m_arguments->text();
 }
 
-bool LanguageFilter::isSupported(const Utils::FileName &filePath, const QString &mimeType) const
+bool LanguageFilter::isSupported(const Utils::FilePath &filePath, const QString &mimeType) const
 {
     if (mimeTypes.isEmpty() && filePattern.isEmpty())
         return true;

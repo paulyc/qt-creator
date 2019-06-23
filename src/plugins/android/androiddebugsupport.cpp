@@ -176,8 +176,7 @@ void AndroidDebugSupport::start()
         solibSearchPath.removeDuplicates();
         setSolibSearchPath(solibSearchPath);
         qCDebug(androidDebugSupportLog) << "SoLibSearchPath: "<<solibSearchPath;
-        setSymbolFile(target->activeBuildConfiguration()->buildDirectory().toString()
-                      + "/app_process");
+        setSymbolFile(target->activeBuildConfiguration()->buildDirectory().pathAppended("app_process"));
         setSkipExecutableValidation(true);
         setUseExtendedRemote(true);
         QUrl gdbServer;
@@ -190,10 +189,10 @@ void AndroidDebugSupport::start()
         const int minimumNdk = qt ? qt->minimumNDK() : 0;
 
         int sdkVersion = qMax(AndroidManager::minimumSDK(kit), minimumNdk);
-        Utils::FileName sysRoot = AndroidConfigurations::currentConfig().ndkLocation()
-                .appendPath("platforms")
-                .appendPath(QString("android-%1").arg(sdkVersion))
-                .appendPath(toNdkArch(AndroidManager::targetArch(target)));
+        Utils::FilePath sysRoot = AndroidConfigurations::currentConfig().ndkLocation()
+                .pathAppended("platforms")
+                .pathAppended(QString("android-%1").arg(sdkVersion))
+                .pathAppended(toNdkArch(AndroidManager::targetArch(target)));
         setSysRoot(sysRoot);
         qCDebug(androidDebugSupportLog) << "Sysroot: " << sysRoot;
     }

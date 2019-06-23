@@ -26,6 +26,7 @@
 #include "cmakeprojectnodes.h"
 
 #include "cmakeconfigitem.h"
+#include "cmakeproject.h"
 #include "cmakeprojectconstants.h"
 #include "cmakeprojectplugin.h"
 
@@ -115,7 +116,7 @@ void noAutoAdditionNotify(const QStringList &filePaths, const ProjectExplorer::P
 
 }
 
-CMakeInputsNode::CMakeInputsNode(const Utils::FileName &cmakeLists) :
+CMakeInputsNode::CMakeInputsNode(const Utils::FilePath &cmakeLists) :
     ProjectExplorer::ProjectNode(cmakeLists)
 {
     setPriority(Node::DefaultPriority - 10); // Bottom most!
@@ -124,7 +125,7 @@ CMakeInputsNode::CMakeInputsNode(const Utils::FileName &cmakeLists) :
     setListInProject(false);
 }
 
-CMakeListsNode::CMakeListsNode(const Utils::FileName &cmakeListPath) :
+CMakeListsNode::CMakeListsNode(const Utils::FilePath &cmakeListPath) :
     ProjectExplorer::ProjectNode(cmakeListPath)
 {
     static QIcon folderIcon = Core::FileIconProvider::directoryIcon(Constants::FILEOVERLAY_CMAKE);
@@ -142,13 +143,12 @@ bool CMakeListsNode::supportsAction(ProjectExplorer::ProjectAction action, const
     return action == ProjectExplorer::ProjectAction::AddNewFile;
 }
 
-Utils::optional<Utils::FileName> CMakeListsNode::visibleAfterAddFileAction() const
+Utils::optional<Utils::FilePath> CMakeListsNode::visibleAfterAddFileAction() const
 {
-    Utils::FileName projFile{filePath()};
-    return projFile.appendPath("CMakeLists.txt");
+    return filePath().pathAppended("CMakeLists.txt");
 }
 
-CMakeProjectNode::CMakeProjectNode(const Utils::FileName &directory) :
+CMakeProjectNode::CMakeProjectNode(const Utils::FilePath &directory) :
     ProjectExplorer::ProjectNode(directory)
 {
     setPriority(Node::DefaultProjectPriority + 1000);
@@ -167,18 +167,14 @@ bool CMakeProjectNode::addFiles(const QStringList &filePaths, QStringList *)
     return true; // Return always true as autoadd is not supported!
 }
 
-CMakeTargetNode::CMakeTargetNode(const Utils::FileName &directory, const QString &target) :
+CMakeTargetNode::CMakeTargetNode(const Utils::FilePath &directory, const QString &target) :
     ProjectExplorer::ProjectNode(directory)
 {
     m_target = target;
     setPriority(Node::DefaultProjectPriority + 900);
     setIcon(QIcon(":/projectexplorer/images/build.png")); // TODO: Use proper icon!
     setListInProject(false);
-}
-
-QString CMakeTargetNode::generateId(const Utils::FileName &directory, const QString &target)
-{
-    return directory.toString() + "///::///" + target;
+    setIsProduct();
 }
 
 QString CMakeTargetNode::tooltip() const
@@ -188,7 +184,17 @@ QString CMakeTargetNode::tooltip() const
 
 QString CMakeTargetNode::buildKey() const
 {
-    return generateId(filePath(), m_target);
+    return m_target;
+}
+
+Utils::FilePath CMakeTargetNode::buildDirectory() const
+{
+    return m_buildDirectory;
+}
+
+void CMakeTargetNode::setBuildDirectory(const Utils::FilePath &directory)
+{
+    m_buildDirectory = directory;
 }
 
 QVariant CMakeTargetNode::data(Core::Id role) const
@@ -249,20 +255,24 @@ bool CMakeTargetNode::addFiles(const QStringList &filePaths, QStringList *)
     return true; // Return always true as autoadd is not supported!
 }
 
-Utils::optional<Utils::FileName> CMakeTargetNode::visibleAfterAddFileAction() const
+Utils::optional<Utils::FilePath> CMakeTargetNode::visibleAfterAddFileAction() const
 {
-    Utils::FileName projFile{filePath()};
-    return projFile.appendPath("CMakeLists.txt");
+    return filePath().pathAppended("CMakeLists.txt");
 }
 
-void CMakeTargetNode::setTargetInformation(const QList<Utils::FileName> &artifacts,
+void CMakeTargetNode::build()
+{
+    static_cast<CMakeProject *>(getProject())->buildCMakeTarget(displayName());
+}
+
+void CMakeTargetNode::setTargetInformation(const QList<Utils::FilePath> &artifacts,
                                            const QString &type)
 {
     m_tooltip = QCoreApplication::translate("CMakeTargetNode", "Target type: ") + type + "<br>";
     if (artifacts.isEmpty()) {
         m_tooltip += QCoreApplication::translate("CMakeTargetNode", "No build artifacts");
     } else {
-        const QStringList tmp = Utils::transform(artifacts, &Utils::FileName::toUserOutput);
+        const QStringList tmp = Utils::transform(artifacts, &Utils::FilePath::toUserOutput);
         m_tooltip += QCoreApplication::translate("CMakeTargetNode", "Build artifacts:") + "<br>"
                 + tmp.join("<br>");
     }

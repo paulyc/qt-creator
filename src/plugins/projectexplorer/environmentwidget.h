@@ -27,17 +27,14 @@
 
 #include "projectexplorer_export.h"
 
+#include <utils/environmentfwd.h>
+
 #include <QWidget>
 
 #include <functional>
 #include <memory>
 
 QT_FORWARD_DECLARE_CLASS(QModelIndex)
-
-namespace Utils {
-class Environment;
-class EnvironmentItem;
-} // namespace Utils
 
 namespace ProjectExplorer {
 
@@ -56,8 +53,11 @@ public:
     void setBaseEnvironmentText(const QString &text);
     void setBaseEnvironment(const Utils::Environment &env);
 
-    QList<Utils::EnvironmentItem> userChanges() const;
-    void setUserChanges(const QList<Utils::EnvironmentItem> &list);
+    Utils::EnvironmentItems userChanges() const;
+    void setUserChanges(const Utils::EnvironmentItems &list);
+
+    using OpenTerminalFunc = std::function<void(const Utils::Environment &env)>;
+    void setOpenTerminalFunc(const OpenTerminalFunc &func);
 
 signals:
     void userChangesChanged();
@@ -71,7 +71,6 @@ private:
     void appendPathButtonClicked();
     void prependPathButtonClicked();
     void batchEditEnvironmentButtonClicked();
-    void openTerminal();
     void environmentCurrentIndexChanged(const QModelIndex &current);
     void invalidateCurrentIndex();
     void updateSummaryText();

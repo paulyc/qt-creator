@@ -40,7 +40,6 @@ class PROJECTEXPLORER_EXPORT DesktopDevice : public IDevice
 public:
     IDevice::DeviceInfo deviceInformation() const override;
 
-    QString displayType() const override;
     IDeviceWidget *createWidget() override;
     bool canAutoDetectPorts() const override;
     bool canCreateProcessModel() const override;
@@ -53,11 +52,8 @@ public:
     QUrl toolControlChannel(const ControlChannelHint &) const override;
     Utils::OsType osType() const override;
 
-    IDevice::Ptr clone() const override;
-
 protected:
     DesktopDevice();
-    DesktopDevice(const DesktopDevice &other);
 
     friend class ProjectExplorerPlugin;
     friend class Internal::DesktopDeviceFactory;

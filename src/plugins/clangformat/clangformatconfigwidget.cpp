@@ -63,7 +63,7 @@ static const char kFileSaveWarning[]
 
 static bool isBeautifierPluginActivated()
 {
-    const QList<ExtensionSystem::PluginSpec *> specs = ExtensionSystem::PluginManager::plugins();
+    const QVector<ExtensionSystem::PluginSpec *> specs = ExtensionSystem::PluginManager::plugins();
     return std::find_if(specs.begin(),
                         specs.end(),
                         [](ExtensionSystem::PluginSpec *spec) {
@@ -169,13 +169,13 @@ void ClangFormatConfigWidget::initChecksAndPreview()
     m_preview->textDocument()->setFontSettings(TextEditor::TextEditorSettings::fontSettings());
     m_preview->textDocument()->setSyntaxHighlighter(new CppEditor::CppHighlighter);
 
-    Utils::FileName fileName;
+    Utils::FilePath fileName;
     if (m_project) {
         connect(m_ui->applyButton, &QPushButton::clicked, this, &ClangFormatConfigWidget::apply);
-        fileName = m_project->projectFilePath().appendPath("snippet.cpp");
+        fileName = m_project->projectFilePath().pathAppended("snippet.cpp");
     } else {
-        fileName = Utils::FileName::fromString(Core::ICore::userResourcePath())
-                       .appendPath("snippet.cpp");
+        fileName = Utils::FilePath::fromString(Core::ICore::userResourcePath())
+                       .pathAppended("snippet.cpp");
     }
     m_preview->textDocument()->indenter()->setFileName(fileName);
 }
@@ -241,10 +241,10 @@ void ClangFormatConfigWidget::showGlobalCheckboxes()
 
 static bool projectConfigExists()
 {
-    return Utils::FileName::fromString(Core::ICore::userResourcePath())
-        .appendPath("clang-format")
-        .appendPath(currentProjectUniqueId())
-        .appendPath((Constants::SETTINGS_FILE_NAME))
+    return Utils::FilePath::fromString(Core::ICore::userResourcePath())
+        .pathAppended("clang-format")
+        .pathAppended(currentProjectUniqueId())
+        .pathAppended((Constants::SETTINGS_FILE_NAME))
         .exists();
 }
 

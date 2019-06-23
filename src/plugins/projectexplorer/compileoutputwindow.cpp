@@ -172,6 +172,8 @@ CompileOutputWindow::CompileOutputWindow(QAction *cancelBuildAction) :
 
     updateFontSettings();
     updateZoomEnabled();
+    setupFilterUi("CompileOutputPane.Filter");
+    setFilteringEnabled(true);
 
     connect(this, &IOutputPane::zoomIn, m_outputWindow, &Core::OutputWindow::zoomIn);
     connect(this, &IOutputPane::zoomOut, m_outputWindow, &Core::OutputWindow::zoomOut);
@@ -345,6 +347,12 @@ void CompileOutputWindow::setSettings(const CompileOutputSettings &settings)
     m_settings = settings;
     storeSettings();
     updateFromSettings();
+}
+
+void CompileOutputWindow::updateFilter()
+{
+    m_outputWindow->updateFilterProperties(filterText(), filterCaseSensitivity(),
+                                           filterUsesRegexp());
 }
 
 void CompileOutputWindow::loadSettings()

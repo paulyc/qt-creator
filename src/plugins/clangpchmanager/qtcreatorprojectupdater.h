@@ -59,8 +59,9 @@ public:
     QtCreatorProjectUpdater(ClangBackEnd::ProjectManagementServerInterface &server,
                             ClientType &client,
                             ClangBackEnd::FilePathCachingInterface &filePathCache,
-                            ClangBackEnd::ProjectPartsStorageInterface &projectPartsStorage)
-        : ProjectUpdaterType(server, client, filePathCache, projectPartsStorage)
+                            ClangBackEnd::ProjectPartsStorageInterface &projectPartsStorage,
+                            ClangIndexingSettingsManager &settingsManager)
+        : ProjectUpdaterType(server, client, filePathCache, projectPartsStorage, settingsManager)
     {
         connectToCppModelManager();
     }
@@ -74,7 +75,6 @@ public:
 
     void projectPartsUpdated(ProjectExplorer::Project *project)
     {
-
         ProjectUpdaterType::updateProjectParts(Internal::createProjectParts(project), {}); // TODO add support for toolchainarguments
     }
 
@@ -95,10 +95,10 @@ public:
 
 protected:
     void newExtraCompiler(const ProjectExplorer::Project *,
-                          const Utils::FileName &,
-                          const Utils::FileNameList &targets) override
+                          const Utils::FilePath &,
+                          const Utils::FilePathList &targets) override
     {
-        for (const Utils::FileName &target : targets)
+        for (const Utils::FilePath &target : targets)
             abstractEditorUpdated(target.toString(), {});
     }
 

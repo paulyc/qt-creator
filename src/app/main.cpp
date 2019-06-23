@@ -102,7 +102,7 @@ const char BLOCK_OPTION[] = "-block";
 const char PLUGINPATH_OPTION[] = "-pluginpath";
 const char USER_LIBRARY_PATH_OPTION[] = "-user-library-path"; // hidden option for qtcreator.sh
 
-typedef QList<PluginSpec *> PluginSpecSet;
+using PluginSpecSet = QVector<PluginSpec *>;
 
 // Helpers for displaying messages. Note that there is no console on Windows.
 
@@ -196,7 +196,7 @@ static bool copyRecursively(const QString &srcFilePath,
     if (srcFileInfo.isDir()) {
         QDir targetDir(tgtFilePath);
         targetDir.cdUp();
-        if (!targetDir.mkdir(Utils::FileName::fromString(tgtFilePath).fileName()))
+        if (!targetDir.mkdir(Utils::FilePath::fromString(tgtFilePath).fileName()))
             return false;
         QDir sourceDir(srcFilePath);
         QStringList fileNames = sourceDir.entryList(QDir::Files | QDir::Dirs | QDir::NoDotAndDotDot | QDir::Hidden | QDir::System);
@@ -234,8 +234,12 @@ static inline QStringList getPluginPaths()
                                     Core::Constants::IDE_DISPLAY_NAME :
                                     Core::Constants::IDE_ID);
     pluginPath += QLatin1String("/plugins/");
-    pluginPath += QLatin1String(Core::Constants::IDE_VERSION_LONG);
-    rc.push_back(pluginPath);
+    // Qt Creator X.Y.Z can load plugins from X.Y.(Z-1) etc, so add current and previous
+    // patch versions
+    const QString minorVersion = QString::number(IDE_VERSION_MAJOR) + '.'
+                                 + QString::number(IDE_VERSION_MINOR) + '.';
+    for (int patchVersion = IDE_VERSION_RELEASE; patchVersion >= 0; --patchVersion)
+        rc.push_back(pluginPath + minorVersion + QString::number(patchVersion));
     return rc;
 }
 

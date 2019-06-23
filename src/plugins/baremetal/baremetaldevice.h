@@ -45,10 +45,8 @@ public:
     static Ptr create() { return Ptr(new BareMetalDevice); }
     ~BareMetalDevice() final;
 
-    QString displayType() const final;
     ProjectExplorer::IDeviceWidget *createWidget() final;
     Utils::OsType osType() const final;
-    ProjectExplorer::IDevice::Ptr clone() const final;
 
     ProjectExplorer::DeviceProcessSignalOperation::Ptr signalOperation() const final;
 
@@ -64,11 +62,9 @@ public:
     QVariantMap toMap() const final;
 
 private:
-    explicit BareMetalDevice() = default;
-    explicit BareMetalDevice(const BareMetalDevice &other);
+    BareMetalDevice();
 
     void setChannelByServerProvider(GdbServerProvider *provider);
-    BareMetalDevice &operator=(const BareMetalDevice &);
     QString m_gdbServerProviderId;
 };
 

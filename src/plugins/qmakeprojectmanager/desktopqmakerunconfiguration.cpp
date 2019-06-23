@@ -71,7 +71,7 @@ DesktopQmakeRunConfiguration::DesktopQmakeRunConfiguration(Target *target, Core:
 
     addAspect<ExecutableAspect>();
     addAspect<ArgumentsAspect>();
-    addAspect<WorkingDirectoryAspect>(envAspect);
+    addAspect<WorkingDirectoryAspect>();
     addAspect<TerminalAspect>();
 
     setOutputFormatter<QtSupport::QtOutputFormatter>();
@@ -125,14 +125,14 @@ void DesktopQmakeRunConfiguration::doAdditionalSetup(const RunConfigurationCreat
     updateTargetInformation();
 }
 
-FileName DesktopQmakeRunConfiguration::proFilePath() const
+FilePath DesktopQmakeRunConfiguration::proFilePath() const
 {
-    return FileName::fromString(buildKey());
+    return FilePath::fromString(buildKey());
 }
 
 QString DesktopQmakeRunConfiguration::defaultDisplayName()
 {
-    FileName profile = proFilePath();
+    FilePath profile = proFilePath();
     if (!profile.isEmpty())
         return profile.toFileInfo().completeBaseName();
     return tr("Qt Run Configuration");

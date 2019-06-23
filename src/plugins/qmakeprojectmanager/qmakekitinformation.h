@@ -37,7 +37,7 @@ class QmakeKitAspect : public ProjectExplorer::KitAspect
 public:
     QmakeKitAspect();
 
-    QList<ProjectExplorer::Task> validate(const ProjectExplorer::Kit *k) const override;
+    ProjectExplorer::Tasks validate(const ProjectExplorer::Kit *k) const override;
     void setup(ProjectExplorer::Kit *k) override;
 
     ProjectExplorer::KitAspectWidget *createConfigWidget(ProjectExplorer::Kit *k) const override;
@@ -48,10 +48,10 @@ public:
 
     static Core::Id id();
     enum class MkspecSource { User, Code };
-    static void setMkspec(ProjectExplorer::Kit *k, const Utils::FileName &fn, MkspecSource source);
-    static Utils::FileName mkspec(const ProjectExplorer::Kit *k);
-    static Utils::FileName effectiveMkspec(const ProjectExplorer::Kit *k);
-    static Utils::FileName defaultMkspec(const ProjectExplorer::Kit *k);
+    static void setMkspec(ProjectExplorer::Kit *k, const QString &mkspec, MkspecSource source);
+    static QString mkspec(const ProjectExplorer::Kit *k);
+    static QString effectiveMkspec(const ProjectExplorer::Kit *k);
+    static QString defaultMkspec(const ProjectExplorer::Kit *k);
 };
 
 } // namespace Internal

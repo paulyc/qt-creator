@@ -95,6 +95,8 @@ protected:
 
     void keyPressEvent(QKeyEvent *event) override
     {
+        if (m_targetSetupPage && m_targetSetupPage->importLineEditHasFocus())
+            return;
         if (event->key() == Qt::Key_Return || event->key() == Qt::Key_Enter) {
             event->accept();
             if (m_targetSetupPage)
@@ -159,6 +161,9 @@ TargetSetupPageWrapper::TargetSetupPageWrapper(Project *project)
 
 void TargetSetupPageWrapper::updateNoteText()
 {
+    if (!m_targetSetupPage)
+        return;
+
     Kit *k = KitManager::defaultKit();
 
     QString text;
@@ -299,7 +304,7 @@ class TargetItem : public TypedTreeItem<TreeItem, TargetGroupItem>
 public:
     enum { DefaultPage = 0 }; // Build page.
 
-    TargetItem(Project *project, Id kitId, const QList<Task> &issues)
+    TargetItem(Project *project, Id kitId, const Tasks &issues)
         : m_project(project), m_kitId(kitId), m_kitIssues(issues)
     {
         m_kitWarningForProject = containsType(m_kitIssues, Task::TaskType::Warning);
@@ -499,7 +504,7 @@ public:
     int m_currentChild = DefaultPage;
     bool m_kitErrorsForProject = false;
     bool m_kitWarningForProject = false;
-    QList<Task> m_kitIssues;
+    Tasks m_kitIssues;
 
 private:
     enum class IconOverlay {

@@ -48,7 +48,7 @@ const char CMAKE_INFORMATION_DISPLAYNAME[] = "DisplayName";
 const char CMAKE_INFORMATION_AUTORUN[] = "AutoRun";
 const char CMAKE_INFORMATION_AUTO_CREATE_BUILD_DIRECTORY[] = "AutoCreateBuildDirectory";
 const char CMAKE_INFORMATION_AUTODETECTED[] = "AutoDetected";
-
+const char CMAKE_INFORMATION_READERTYPE[] = "ReaderType";
 
 bool CMakeTool::Generator::matches(const QString &n, const QString &ex) const
 {
@@ -57,9 +57,49 @@ bool CMakeTool::Generator::matches(const QString &n, const QString &ex) const
 
 namespace Internal {
 
+const char READER_TYPE_TEALEAF[] = "tealeaf";
+const char READER_TYPE_SERVERMODE[] = "servermode";
+const char READER_TYPE_FILEAPI[] = "fileapi";
+
+static bool ignoreFileApi()
+{
+    static bool s_ignoreFileApi = qEnvironmentVariableIsSet("QTC_CMAKE_IGNORE_FILEAPI");
+    return s_ignoreFileApi;
+}
+
+static Utils::optional<CMakeTool::ReaderType> readerTypeFromString(const QString &input)
+{
+    if (input == READER_TYPE_TEALEAF)
+        return CMakeTool::TeaLeaf;
+    if (input == READER_TYPE_SERVERMODE)
+        return CMakeTool::ServerMode;
+    if (input == READER_TYPE_FILEAPI)
+        return ignoreFileApi() ? CMakeTool::ServerMode : CMakeTool::FileApi;
+    return {};
+}
+
+static QString readerTypeToString(const CMakeTool::ReaderType &type)
+{
+    switch (type) {
+    case CMakeTool::TeaLeaf:
+        return QString(READER_TYPE_TEALEAF);
+    case CMakeTool::ServerMode:
+        return QString(READER_TYPE_SERVERMODE);
+    case CMakeTool::FileApi:
+        return QString(READER_TYPE_FILEAPI);
+    }
+    return QString();
+}
+
 // --------------------------------------------------------------------
 // CMakeIntrospectionData:
 // --------------------------------------------------------------------
+
+class FileApi {
+public:
+    QString kind;
+    std::pair<int, int> version;
+};
 
 class IntrospectionData
 {
@@ -73,6 +113,7 @@ public:
 
     QList<CMakeTool::Generator> m_generators;
     QMap<QString, QStringList> m_functionArgs;
+    QVector<FileApi> m_fileApis;
     QStringList m_variables;
     QStringList m_functions;
     CMakeTool::Version m_version;
@@ -97,12 +138,14 @@ CMakeTool::CMakeTool(const QVariantMap &map, bool fromSdk) :
     m_displayName = map.value(CMAKE_INFORMATION_DISPLAYNAME).toString();
     m_isAutoRun = map.value(CMAKE_INFORMATION_AUTORUN, true).toBool();
     m_autoCreateBuildDirectory = map.value(CMAKE_INFORMATION_AUTO_CREATE_BUILD_DIRECTORY, false).toBool();
+    m_readerType = Internal::readerTypeFromString(
+        map.value(CMAKE_INFORMATION_READERTYPE).toString());
 
     //loading a CMakeTool from SDK is always autodetection
     if (!fromSdk)
         m_isAutoDetected = map.value(CMAKE_INFORMATION_AUTODETECTED, false).toBool();
 
-    setCMakeExecutable(Utils::FileName::fromString(map.value(CMAKE_INFORMATION_COMMAND).toString()));
+    setCMakeExecutable(Utils::FilePath::fromString(map.value(CMAKE_INFORMATION_COMMAND).toString()));
 }
 
 CMakeTool::~CMakeTool() = default;
@@ -112,7 +155,7 @@ Core::Id CMakeTool::createId()
     return Core::Id::fromString(QUuid::createUuid().toString());
 }
 
-void CMakeTool::setCMakeExecutable(const Utils::FileName &executable)
+void CMakeTool::setCMakeExecutable(const Utils::FilePath &executable)
 {
     if (m_executable == executable)
         return;
@@ -169,7 +212,7 @@ Utils::SynchronousProcessResponse CMakeTool::run(const QStringList &args, bool m
     cmake.setProcessEnvironment(env.toProcessEnvironment());
     cmake.setTimeOutMessageBoxEnabled(false);
 
-    Utils::SynchronousProcessResponse response = cmake.runBlocking(m_executable.toString(), args);
+    Utils::SynchronousProcessResponse response = cmake.runBlocking({m_executable, args});
     m_introspection->m_didAttemptToRun = true;
     m_introspection->m_didRun = mayFail ? true : (response.result == Utils::SynchronousProcessResponse::Finished);
     return response;
@@ -183,15 +226,17 @@ QVariantMap CMakeTool::toMap() const
     data.insert(CMAKE_INFORMATION_COMMAND, m_executable.toString());
     data.insert(CMAKE_INFORMATION_AUTORUN, m_isAutoRun);
     data.insert(CMAKE_INFORMATION_AUTO_CREATE_BUILD_DIRECTORY, m_autoCreateBuildDirectory);
+    if (m_readerType.has_value())
+        data.insert(CMAKE_INFORMATION_READERTYPE,
+                    Internal::readerTypeToString(m_readerType.value()));
     data.insert(CMAKE_INFORMATION_AUTODETECTED, m_isAutoDetected);
     return data;
 }
 
-Utils::FileName CMakeTool::cmakeExecutable() const
+Utils::FilePath CMakeTool::cmakeExecutable() const
 {
     if (Utils::HostOsInfo::isMacHost() && m_executable.endsWith(".app")) {
-        Utils::FileName toTest = m_executable;
-        toTest = toTest.appendPath("Contents/bin/cmake");
+        const Utils::FilePath toTest = m_executable.pathAppended("Contents/bin/cmake");
         if (toTest.exists())
             return toTest;
     }
@@ -249,6 +294,18 @@ bool CMakeTool::hasServerMode() const
     return m_introspection->m_hasServerMode;
 }
 
+bool CMakeTool::hasFileApi() const
+{
+    readInformation(QueryType::SERVER_MODE);
+    return !m_introspection->m_fileApis.isEmpty();
+}
+
+QVector<std::pair<QString, int> > CMakeTool::supportedFileApiObjects() const
+{
+    readInformation(QueryType::SERVER_MODE);
+    return Utils::transform(m_introspection->m_fileApis, [](const Internal::FileApi &api) { return std::make_pair(api.kind, api.version.first); });
+}
+
 CMakeTool::Version CMakeTool::version() const
 {
     readInformation(QueryType::VERSION);
@@ -280,14 +337,30 @@ CMakeTool::PathMapper CMakeTool::pathMapper() const
 {
     if (m_pathMapper)
         return m_pathMapper;
-    return [](const Utils::FileName &fn) { return fn; };
+    return [](const Utils::FilePath &fn) { return fn; };
+}
+
+CMakeTool::ReaderType CMakeTool::readerType() const
+{
+    if (!m_readerType.has_value()) {
+        // Find best possible reader type:
+        if (hasFileApi()) {
+            if (hasServerMode() && Internal::ignoreFileApi())
+                return ServerMode; // We were asked to fall back to server mode
+            return FileApi;
+        }
+        if (hasServerMode())
+            return ServerMode;
+        return TeaLeaf;
+    }
+    return m_readerType.value();
 }
 
 void CMakeTool::readInformation(CMakeTool::QueryType type) const
 {
     if ((type == QueryType::GENERATORS && !m_introspection->m_generators.isEmpty())
-         || (type == QueryType::SERVER_MODE && m_introspection->m_queriedServerMode)
-         || (type == QueryType::VERSION && !m_introspection->m_version.fullVersion.isEmpty()))
+        || (type == QueryType::SERVER_MODE && m_introspection->m_queriedServerMode)
+        || (type == QueryType::VERSION && !m_introspection->m_version.fullVersion.isEmpty()))
         return;
 
     if (!m_introspection->m_triedCapabilities) {
@@ -305,7 +378,7 @@ void CMakeTool::readInformation(CMakeTool::QueryType type) const
     } else if (type == QueryType::VERSION) {
         fetchVersionFromVersionOutput();
     } else {
-        QTC_ASSERT(false, return);
+        QTC_ASSERT(false, return );
     }
 }
 
@@ -325,10 +398,10 @@ static QStringList parseDefinition(const QString &definition)
                 ignoreWord = true;
         }
 
-        if (c == ' ' || c == '[' || c == '<' || c == '('
-                || c == ']' || c == '>' || c == ')') {
+        if (c == ' ' || c == '[' || c == '<' || c == '(' || c == ']' || c == '>' || c == ')') {
             if (!ignoreWord && !word.isEmpty()) {
-                if (result.isEmpty() || Utils::allOf(word, [](const QChar &c) { return c.isUpper() || c == '_'; }))
+                if (result.isEmpty()
+                    || Utils::allOf(word, [](const QChar &c) { return c.isUpper() || c == '_'; }))
                     result.append(word);
             }
             word.clear();
@@ -385,11 +458,12 @@ QStringList CMakeTool::parseVariableOutput(const QString &output)
     QStringList result;
     foreach (const QString &v, variableList) {
         if (v.startsWith("CMAKE_COMPILER_IS_GNU<LANG>")) { // This key takes a compiler name :-/
-            result << "CMAKE_COMPILER_IS_GNUCC" << "CMAKE_COMPILER_IS_GNUCXX";
+            result << "CMAKE_COMPILER_IS_GNUCC"
+                   << "CMAKE_COMPILER_IS_GNUCXX";
         } else if (v.contains("<CONFIG>")) {
             const QString tmp = QString(v).replace("<CONFIG>", "%1");
-            result << tmp.arg("DEBUG") << tmp.arg("RELEASE")
-                   << tmp.arg("MINSIZEREL") << tmp.arg("RELWITHDEBINFO");
+            result << tmp.arg("DEBUG") << tmp.arg("RELEASE") << tmp.arg("MINSIZEREL")
+                   << tmp.arg("RELWITHDEBINFO");
         } else if (v.contains("<LANG>")) {
             const QString tmp = QString(v).replace("<LANG>", "%1");
             result << tmp.arg("C") << tmp.arg("CXX");
@@ -457,7 +531,7 @@ void CMakeTool::parseGeneratorsFromHelp(const QStringList &lines) const
 
 void CMakeTool::fetchVersionFromVersionOutput() const
 {
-    Utils::SynchronousProcessResponse response = run({"--version" });
+    Utils::SynchronousProcessResponse response = run({"--version"});
     if (response.result != Utils::SynchronousProcessResponse::Finished)
         return;
 
@@ -482,11 +556,20 @@ void CMakeTool::parseVersionFormVersionOutput(const QStringList &lines) const
 
 void CMakeTool::fetchFromCapabilities() const
 {
-    Utils::SynchronousProcessResponse response = run({"-E", "capabilities" }, true);
+    Utils::SynchronousProcessResponse response = run({"-E", "capabilities"}, true);
     if (response.result != Utils::SynchronousProcessResponse::Finished)
         return;
 
     parseFromCapabilities(response.stdOut());
+}
+
+static int getVersion(const QVariantMap &obj, const QString value)
+{
+    bool ok;
+    int result = obj.value(value).toInt(&ok);
+    if (!ok)
+        return -1;
+    return result;
 }
 
 void CMakeTool::parseFromCapabilities(const QString &input) const
@@ -506,11 +589,32 @@ void CMakeTool::parseFromCapabilities(const QString &input) const
                                                        gen.value("toolsetSupport").toBool()));
     }
 
+    {
+        const QVariantMap fileApis = data.value("fileApi").toMap();
+        const QVariantList requests = fileApis.value("requests").toList();
+        for (const QVariant &r : requests) {
+            const QVariantMap object = r.toMap();
+            const QString kind = object.value("kind").toString();
+            const QVariantMap versionObject = object.value("version").toMap();
+            const std::pair<int, int> version = std::make_pair(getVersion(versionObject, "major"),
+                                                               getVersion(versionObject, "minor"));
+            if (!kind.isNull() && version.first != -1 && version.second != -1)
+                m_introspection->m_fileApis.append({kind, version});
+        }
+    }
+
     const QVariantMap versionInfo = data.value("version").toMap();
     m_introspection->m_version.major = versionInfo.value("major").toInt();
     m_introspection->m_version.minor = versionInfo.value("minor").toInt();
     m_introspection->m_version.patch = versionInfo.value("patch").toInt();
     m_introspection->m_version.fullVersion = versionInfo.value("string").toByteArray();
+
+    // Fix up fileapi support for cmake 3.14:
+    if (m_introspection->m_version.major == 3 && m_introspection->m_version.minor == 14) {
+        m_introspection->m_fileApis.append({QString("codemodel"), std::make_pair(2, 0)});
+        m_introspection->m_fileApis.append({QString("cache"), std::make_pair(2, 0)});
+        m_introspection->m_fileApis.append({QString("cmakefiles"), std::make_pair(1, 0)});
+    }
 }
 
 } // namespace CMakeProjectManager

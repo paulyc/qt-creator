@@ -290,6 +290,11 @@ QString MacroExpander::expand(const QString &stringWithVariables) const
     return res;
 }
 
+FilePath MacroExpander::expand(const FilePath &fileNameWithVariables) const
+{
+    return FilePath::fromString(expand(fileNameWithVariables.toString()));
+}
+
 QByteArray MacroExpander::expand(const QByteArray &stringWithVariables) const
 {
     return expand(QString::fromLatin1(stringWithVariables)).toLatin1();
@@ -417,7 +422,7 @@ void MacroExpander::registerFileVariables(const QByteArray &prefix,
 
     registerVariable(prefix + kFileNamePostfix,
          tr("%1: File name without path.").arg(heading),
-         [base]() -> QString { QString tmp = base(); return tmp.isEmpty() ? QString() : FileName::fromString(tmp).fileName(); },
+         [base]() -> QString { QString tmp = base(); return tmp.isEmpty() ? QString() : FilePath::fromString(tmp).fileName(); },
          visibleInChooser);
 
     registerVariable(prefix + kFileBaseNamePostfix,

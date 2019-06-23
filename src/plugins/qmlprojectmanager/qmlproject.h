@@ -45,10 +45,10 @@ class QMLPROJECTMANAGER_EXPORT QmlProject : public ProjectExplorer::Project
     Q_OBJECT
 
 public:
-    explicit QmlProject(const Utils::FileName &filename);
+    explicit QmlProject(const Utils::FilePath &filename);
     ~QmlProject() override;
 
-    QList<ProjectExplorer::Task> projectIssues(const ProjectExplorer::Kit *k) const final;
+    ProjectExplorer::Tasks projectIssues(const ProjectExplorer::Kit *k) const final;
 
     bool validProjectFile() const;
 
@@ -62,14 +62,14 @@ public:
 
     void refresh(RefreshOptions options);
 
-    Utils::FileName canonicalProjectDir() const;
+    Utils::FilePath canonicalProjectDir() const;
     QString mainFile() const;
     void setMainFile(const QString &mainFilePath);
-    Utils::FileName targetDirectory(const ProjectExplorer::Target *target) const;
-    Utils::FileName targetFile(const Utils::FileName &sourceFile,
+    Utils::FilePath targetDirectory(const ProjectExplorer::Target *target) const;
+    Utils::FilePath targetFile(const Utils::FilePath &sourceFile,
                                const ProjectExplorer::Target *target) const;
 
-    QList<Utils::EnvironmentItem> environment() const;
+    Utils::EnvironmentItems environment() const;
     QStringList customImportPaths() const;
     QStringList customFileSelectors() const;
 
@@ -79,7 +79,7 @@ public:
 
     bool needsBuildConfigurations() const final;
 
-    static QStringList makeAbsolute(const Utils::FileName &path, const QStringList &relativePaths);
+    static QStringList makeAbsolute(const Utils::FilePath &path, const QStringList &relativePaths);
 
     QVariant additionalData(Core::Id id, const ProjectExplorer::Target *target) const override;
 
@@ -103,7 +103,7 @@ private:
     ProjectExplorer::Target *m_activeTarget = nullptr;
 
     QPointer<QmlProjectItem> m_projectItem;
-    Utils::FileName m_canonicalProjectDir;
+    Utils::FilePath m_canonicalProjectDir;
 };
 
 } // namespace QmlProjectManager

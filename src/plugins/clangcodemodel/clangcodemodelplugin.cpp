@@ -60,9 +60,8 @@ static void addProjectPanelWidget()
     auto panelFactory = new ProjectExplorer::ProjectPanelFactory();
     panelFactory->setPriority(60);
     panelFactory->setDisplayName(ClangProjectSettingsWidget::tr("Clang Code Model"));
-    panelFactory->setCreateWidgetFunction([](ProjectExplorer::Project *project) {
-        return new ClangProjectSettingsWidget(project);
-    });
+    panelFactory->setCreateWidgetFunction(
+        [&](ProjectExplorer::Project *project) { return new ClangProjectSettingsWidget(project); });
     ProjectExplorer::ProjectPanelFactory::registerFactory(panelFactory);
 }
 
@@ -201,7 +200,7 @@ void ClangCodeModelPlugin::maybeHandleBatchFileAndExit() const
 }
 
 #ifdef WITH_TESTS
-QList<QObject *> ClangCodeModelPlugin::createTestObjects() const
+QVector<QObject *> ClangCodeModelPlugin::createTestObjects() const
 {
     return {
         new Tests::ClangCodeCompletionTest,

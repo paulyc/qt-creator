@@ -41,8 +41,9 @@
 #include <coreplugin/editormanager/ieditor.h>
 #include <coreplugin/idocument.h>
 #include <cppeditor/cppeditorconstants.h>
-#include <projectexplorer/projecttree.h>
 #include <projectexplorer/project.h>
+#include <projectexplorer/projectnodes.h>
+#include <projectexplorer/projecttree.h>
 #include <texteditor/formattexteditor.h>
 #include <utils/fileutils.h>
 #include <utils/hostosinfo.h>
@@ -103,10 +104,9 @@ QString ArtisticStyle::configurationFile() const
     if (m_settings.useOtherFiles()) {
         if (const ProjectExplorer::Project *project
                 = ProjectExplorer::ProjectTree::currentProject()) {
-            const Utils::FileNameList files = project->files(ProjectExplorer::Project::AllFiles);
-            for (const Utils::FileName &file : files) {
-                if (!file.endsWith(".astylerc"))
-                    continue;
+            const Utils::FilePathList astyleRcfiles = project->files(
+                [](const ProjectExplorer::Node *n) { return n->filePath().endsWith(".astylerc"); });
+            for (const Utils::FilePath &file : astyleRcfiles) {
                 const QFileInfo fi = file.toFileInfo();
                 if (fi.isReadable())
                     return file.toString();
@@ -115,7 +115,7 @@ QString ArtisticStyle::configurationFile() const
     }
 
     if (m_settings.useSpecificConfigFile()) {
-        const Utils::FileName file = m_settings.specificConfigFile();
+        const Utils::FilePath file = m_settings.specificConfigFile();
         if (file.exists())
             return file.toUserOutput();
     }
@@ -147,7 +147,7 @@ bool ArtisticStyle::isApplicable(const Core::IDocument *document) const
 Command ArtisticStyle::command(const QString &cfgFile) const
 {
     Command command;
-    command.setExecutable(m_settings.command());
+    command.setExecutable(m_settings.command().toString());
     command.addOption("-q");
     command.addOption("--options=" + cfgFile);
 

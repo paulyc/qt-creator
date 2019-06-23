@@ -33,6 +33,7 @@
 
 using namespace ProjectExplorer;
 using namespace CompilationDatabaseProjectManager;
+using namespace CompilationDatabaseProjectManager::Internal;
 
 namespace {
 
@@ -42,7 +43,7 @@ protected:
     QStringList splitCommandLine(const QString &commandLine)
     {
         QSet<QString> flagsCache;
-        return CompilationDatabaseProjectManager::splitCommandLine(commandLine, flagsCache);
+        return CompilationDatabaseProjectManager::Internal::splitCommandLine(commandLine, flagsCache);
     }
 
     HeaderPaths headerPaths;
@@ -96,7 +97,8 @@ TEST_F(CompilationDatabaseUtils, FilterArguments)
                     QString::fromUtf8(HostOsInfo::isWindowsHost() ? winPath2 : otherPath2),
                     "-x",
                     "c++",
-                    "--sysroot=C:\\sysroot\\embedded",
+                    QString("--sysroot=") + (HostOsInfo::isWindowsHost()
+                        ? "C:\\sysroot\\embedded" : "/opt/sysroot/embedded"),
                     "C:\\qt-creator\\src\\plugins\\cpptools\\compileroptionsbuilder.cpp"},
         "compileroptionsbuilder");
 
@@ -119,7 +121,8 @@ TEST_F(CompilationDatabaseUtils, FilterArguments)
                           {"RELATIVE_PLUGIN_PATH", "\"../lib/qtcreator/plugins\""},
                           {"QT_CREATOR", "1"}}));
     ASSERT_THAT(fileKind, CppTools::ProjectFile::Kind::CXXSource);
-    ASSERT_THAT(sysRoot, QString("C:\\sysroot\\embedded"));
+    ASSERT_THAT(sysRoot, HostOsInfo::isWindowsHost() ? QString("C:\\sysroot\\embedded")
+                                                     : QString("/opt/sysroot/embedded"));
 }
 
 static QString kCmakeCommand

@@ -28,6 +28,7 @@
 #include "qbsnodetreebuilder.h"
 #include "qbsproject.h"
 #include "qbsprojectmanagerconstants.h"
+#include "qbsprojectmanagerplugin.h"
 #include "qbsrunconfiguration.h"
 
 #include <android/androidconstants.h>
@@ -236,7 +237,7 @@ static bool supportsNodeAction(ProjectAction action, const Node *node)
 // --------------------------------------------------------------------
 
 QbsGroupNode::QbsGroupNode(const qbs::GroupData &grp, const QString &productPath) :
-    ProjectNode(Utils::FileName())
+    ProjectNode(Utils::FilePath())
 {
     static QIcon groupIcon = QIcon(QString(Constants::QBS_GROUP_ICON));
     setIcon(groupIcon);
@@ -324,11 +325,12 @@ FolderNode::AddNewInformation QbsGroupNode::addNewInformation(const QStringList 
 // --------------------------------------------------------------------
 
 QbsProductNode::QbsProductNode(const qbs::ProductData &prd) :
-    ProjectNode(Utils::FileName::fromString(prd.location().filePath())),
+    ProjectNode(Utils::FilePath::fromString(prd.location().filePath())),
     m_qbsProductData(prd)
 {
     static QIcon productIcon = Core::FileIconProvider::directoryIcon(Constants::QBS_PRODUCT_OVERLAY_ICON);
     setIcon(productIcon);
+    setIsProduct();
 }
 
 bool QbsProductNode::supportsAction(ProjectAction action, const Node *node) const
@@ -390,6 +392,12 @@ bool QbsProductNode::renameFile(const QString &filePath, const QString &newFileP
     return prjNode->project()->renameFileInProduct(filePath, newFilePath, m_qbsProductData, grp);
 }
 
+void QbsProductNode::build()
+{
+    QbsProjectManagerPlugin::buildNamedProduct(static_cast<QbsProject *>(getProject()),
+                                               QbsProject::uniqueProductName(qbsProductData()));
+}
+
 QStringList QbsProductNode::targetApplications() const
 {
     return QStringList{m_qbsProductData.targetExecutable()};
@@ -402,9 +410,6 @@ QString QbsProductNode::buildKey() const
 
 QVariant QbsProductNode::data(Core::Id role) const
 {
-//    if (role == Android::Constants::AndroidExtraLibs)
-//        return value("ANDROID_EXTRA_LIBS");
-
     if (role == Android::Constants::AndroidDeploySettingsFile) {
         for (const auto &artifact : m_qbsProductData.generatedArtifacts()) {
             if (artifact.fileTags().contains("qt_androiddeployqt_input"))
@@ -418,11 +423,9 @@ QVariant QbsProductNode::data(Core::Id role) const
         for (const auto &artifact : m_qbsProductData.generatedArtifacts()) {
             if (artifact.fileTags().contains("dynamiclibrary")) {
                 ret << QFileInfo(artifact.filePath()).path();
-                qDebug() << artifact.properties().toString();
             }
         }
         ret.removeDuplicates();
-        qDebug() << ret;
         return ret;
     }
 
@@ -434,16 +437,8 @@ QVariant QbsProductNode::data(Core::Id role) const
         return {};
     }
 
-    if (role == Android::Constants::AndroidApk) {
-//        qDebug() << m_qbsProductData.name() << m_qbsProductData.targetExecutable() << m_qbsProductData.properties();
-//        for (const auto &artifact : m_qbsProductData.installableArtifacts()) {
-//            qDebug() << artifact.fileTags() << artifact.filePath();
-//        }
-//        for (const auto &artifact : m_qbsProductData.generatedArtifacts()) {
-//            qDebug() << artifact.fileTags() << artifact.filePath();
-//        }
+    if (role == Android::Constants::AndroidApk)
         return m_qbsProductData.targetExecutable();
-    }
 
     return {};
 }
@@ -452,7 +447,7 @@ QVariant QbsProductNode::data(Core::Id role) const
 // QbsProjectNode:
 // --------------------------------------------------------------------
 
-QbsProjectNode::QbsProjectNode(const Utils::FileName &projectDirectory) :
+QbsProjectNode::QbsProjectNode(const Utils::FilePath &projectDirectory) :
     ProjectNode(projectDirectory)
 {
     static QIcon projectIcon = Core::FileIconProvider::directoryIcon(ProjectExplorer::Constants::FILEOVERLAY_QT);

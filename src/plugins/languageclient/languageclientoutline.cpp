@@ -140,6 +140,11 @@ LanguageClientOutlineWidget::LanguageClientOutlineWidget(Client *client,
             &DocumentSymbolCache::gotSymbols,
             this,
             &LanguageClientOutlineWidget::handleResponse);
+    connect(editor->textDocument(), &TextEditor::TextDocument::contentsChanged, this, [this]() {
+        if (m_client)
+            m_client->documentSymbolCache()->requestSymbols(m_uri);
+    });
+
     client->documentSymbolCache()->requestSymbols(m_uri);
 
     auto *layout = new QVBoxLayout;
@@ -200,6 +205,8 @@ void LanguageClientOutlineWidget::updateSelectionInTree(const QTextCursor &curre
             selection.select(m_model.indexForItem(item), m_model.indexForItem(item));
     });
     m_view.selectionModel()->select(selection, QItemSelectionModel::ClearAndSelect);
+    if (!selection.isEmpty())
+        m_view.scrollTo(selection.indexes().first());
 }
 
 void LanguageClientOutlineWidget::onItemActivated(const QModelIndex &index)

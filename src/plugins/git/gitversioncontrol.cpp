@@ -76,7 +76,7 @@ Core::Id GitVersionControl::id() const
     return Core::Id(VcsBase::Constants::VCS_ID_GIT);
 }
 
-bool GitVersionControl::isVcsFileOrDirectory(const Utils::FileName &fileName) const
+bool GitVersionControl::isVcsFileOrDirectory(const Utils::FilePath &fileName) const
 {
     if (fileName.fileName().compare(".git", Utils::HostOsInfo::fileNameCaseSensitivity()))
         return false;
@@ -150,7 +150,7 @@ QString GitVersionControl::vcsTopic(const QString &directory)
 }
 
 Core::ShellCommand *GitVersionControl::createInitialCheckoutCommand(const QString &url,
-                                                                    const Utils::FileName &baseDirectory,
+                                                                    const Utils::FilePath &baseDirectory,
                                                                     const QString &localName,
                                                                     const QStringList &extraArgs)
 {
@@ -159,7 +159,7 @@ Core::ShellCommand *GitVersionControl::createInitialCheckoutCommand(const QStrin
 
     auto command = new VcsBase::VcsCommand(baseDirectory.toString(), m_client->processEnvironment());
     command->addFlags(VcsBase::VcsCommand::SuppressStdErr);
-    command->addJob(m_client->vcsBinary(), args, -1);
+    command->addJob({m_client->vcsBinary(), args}, -1);
     return command;
 }
 
